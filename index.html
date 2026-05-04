@@ -1,909 +1,533 @@
-html_content = '''<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0a0e17">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Aura Engine 2.0 - Validador de Vuelos</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg-primary: #0a0e17; --bg-secondary: #111827; --bg-card: #1a2234;
-  --bg-input: #0f172a; --border-color: #1e3a5f; --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8; --text-muted: #64748b; --accent-cyan: #06b6d4;
-  --accent-blue: #3b82f6; --accent-purple: #8b5cf6; --accent-green: #10b981;
-  --accent-amber: #f59e0b; --accent-red: #ef4444; --accent-pink: #ec4899;
-  --gradient-aura: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #8b5cf6 100%);
-  --gradient-glow: linear-gradient(135deg, rgba(6,182,212,0.15) 0%, rgba(59,130,246,0.1) 100%);
-}
-* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { scroll-behavior: smooth; }
-body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; -webkit-font-smoothing: antialiased; }
-.bg-grid { position: fixed; inset: 0; background-image: linear-gradient(rgba(6,182,212,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.03) 1px, transparent 1px); background-size: 60px 60px; pointer-events: none; z-index: 0; }
-.bg-orb { position: fixed; border-radius: 50%; filter: blur(120px); opacity: 0.08; pointer-events: none; z-index: 0; }
-.bg-orb-1 { width: 600px; height: 600px; background: var(--accent-cyan); top: -200px; right: -200px; animation: float 20s ease-in-out infinite; }
-.bg-orb-2 { width: 500px; height: 500px; background: var(--accent-purple); bottom: -150px; left: -150px; animation: float 25s ease-in-out infinite reverse; }
-@keyframes float { 0%,100%{transform:translate(0,0)scale(1)} 33%{transform:translate(30px,-30px)scale(1.05)} 66%{transform:translate(-20px,20px)scale(0.95)} }
-.app-container { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 16px; }
-.header { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); }
-.logo-section { display: flex; align-items: center; gap: 12px; }
-.logo-icon { width: 44px; height: 44px; background: var(--gradient-aura); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 0 30px rgba(6,182,212,0.3); animation: pulse 3s ease-in-out infinite; }
-@keyframes pulse { 0%,100%{box-shadow:0 0 30px rgba(6,182,212,0.3)} 50%{box-shadow:0 0 50px rgba(6,182,212,0.5)} }
-.logo-text h1 { font-size: 20px; font-weight: 800; background: var(--gradient-aura); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -0.5px; }
-.logo-text p { font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; letter-spacing: 2px; text-transform: uppercase; }
-.status-badge { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--accent-green); }
-.status-dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; animation: blink 2s infinite; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
-.search-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; margin-bottom: 16px; position: relative; overflow: hidden; }
-.search-panel::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--gradient-aura); opacity: 0.6; }
-.panel-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-.panel-title .icon { color: var(--accent-cyan); }
-.search-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.input-group { display: flex; flex-direction: column; gap: 5px; position: relative; }
-.input-group.full-width { grid-column: 1 / -1; }
-.input-group label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
-.input-group input, .input-group select { padding: 12px 14px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-primary); font-size: 14px; font-family: 'Inter', sans-serif; transition: all 0.3s ease; appearance: none; -webkit-appearance: none; }
-.input-group input:focus, .input-group select:focus { outline: none; border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(6,182,212,0.1); }
-.input-group input::placeholder { color: var(--text-muted); opacity: 0.6; }
-.input-group select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
-.input-group .airport-code { font-family: 'JetBrains Mono', monospace; color: var(--accent-cyan); font-weight: 700; font-size: 13px; margin-top: 4px; min-height: 18px; }
-.input-hint { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
-.route-display { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px; background: var(--bg-input); border-radius: 12px; margin-top: 14px; font-family: 'JetBrains Mono', monospace; }
-.route-airport { text-align: center; }
-.route-airport .code { font-size: 24px; font-weight: 800; color: var(--accent-cyan); }
-.route-airport .name { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
-.route-arrow { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
-.route-arrow .line { width: 50px; height: 2px; background: var(--gradient-aura); position: relative; }
-.route-arrow .line::after { content: '▶'; position: absolute; right: -7px; top: -6px; font-size: 9px; color: var(--accent-cyan); }
-.route-arrow .distance { font-size: 10px; color: var(--text-muted); }
-.search-btn { width: 100%; padding: 16px; margin-top: 16px; background: var(--gradient-aura); border: none; border-radius: 12px; color: white; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.3s ease; position: relative; overflow: hidden; -webkit-touch-callout: none; }
-.search-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(6,182,212,0.3); }
-.search-btn:active { transform: translateY(0) scale(0.98); }
-.search-btn .btn-shine { position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); animation: shine 3s infinite; }
-@keyframes shine { 0%{left:-100%} 50%,100%{left:100%} }
-.results-section { display: none; animation: fadeIn 0.6s ease; }
-.results-section.active { display: block; }
-@keyframes fadeIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
-.section-title { font-size: 18px; font-weight: 700; }
-.comparison-toggle { display: flex; gap: 6px; background: var(--bg-input); padding: 4px; border-radius: 10px; }
-.toggle-btn { padding: 8px 14px; border: none; border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
-.toggle-btn.active { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-.cards-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
-@media(min-width:768px){ .cards-grid { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); } .search-grid { grid-template-columns: 1fr 1fr 1fr 1fr; } .input-group.full-width { grid-column: auto; } }
-.flight-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; transition: all 0.3s ease; position: relative; }
-.flight-card:hover { border-color: var(--accent-cyan); transform: translateY(-2px); box-shadow: 0 16px 32px rgba(0,0,0,0.4); }
-.flight-card.aura-card { border-color: rgba(6,182,212,0.3); }
-.flight-card.aura-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--gradient-aura); }
-.card-header { padding: 16px 16px 10px; display: flex; justify-content: space-between; align-items: flex-start; }
-.card-type { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-.card-type.traditional { color: var(--text-muted); }
-.card-type.aura { color: var(--accent-cyan); }
-.card-badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; }
-.badge-recommended { background: rgba(16,185,129,0.15); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.3); }
-.badge-standard { background: rgba(148,163,184,0.1); color: var(--text-muted); border: 1px solid rgba(148,163,184,0.2); }
-.card-price { padding: 0 16px 14px; border-bottom: 1px solid var(--border-color); }
-.price-main { font-size: 32px; font-weight: 800; color: var(--text-primary); line-height: 1; }
-.price-main .currency { font-size: 16px; font-weight: 600; color: var(--text-secondary); }
-.price-details { display: flex; gap: 12px; margin-top: 6px; font-size: 11px; color: var(--text-muted); flex-wrap: wrap; }
-.price-details .savings { color: var(--accent-green); font-weight: 600; }
-.card-body { padding: 14px 16px; }
-.segment { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(30,58,95,0.3); }
-.segment:last-child { border-bottom: none; }
-.segment-airline { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-.segment-info { flex: 1; min-width: 0; }
-.segment-route { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.segment-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-.segment-time { text-align: right; font-family: 'JetBrains Mono', monospace; flex-shrink: 0; }
-.segment-time .time { font-size: 13px; font-weight: 700; color: var(--text-primary); }
-.segment-time .duration { font-size: 10px; color: var(--text-muted); }
-.connection-badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: var(--bg-input); border-radius: 8px; font-size: 11px; font-weight: 600; margin: 6px 0 6px 46px; }
-.connection-badge.safe { color: var(--accent-green); border: 1px solid rgba(16,185,129,0.2); }
-.connection-badge.warning { color: var(--accent-amber); border: 1px solid rgba(245,158,11,0.2); }
-.connection-badge.danger { color: var(--accent-red); border: 1px solid rgba(239,68,68,0.2); }
-.card-footer { padding: 10px 16px; background: var(--bg-input); display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-.card-footer .meta { font-size: 11px; color: var(--text-muted); }
-.card-footer .meta strong { color: var(--text-secondary); }
-.card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.buy-link { padding: 8px 14px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; color: var(--accent-cyan); font-size: 12px; font-family: 'JetBrains Mono', monospace; font-weight: 600; cursor: pointer; transition: all 0.3s ease; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-.buy-link:hover { border-color: var(--accent-cyan); background: rgba(6,182,212,0.1); }
-.buy-link.primary { background: var(--gradient-aura); color: white; border: none; }
-.buy-link.primary:hover { box-shadow: 0 4px 16px rgba(6,182,212,0.3); }
-.verdict-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 24px 20px; margin-bottom: 20px; text-align: center; position: relative; overflow: hidden; }
-.verdict-panel.validated { border-color: rgba(16,185,129,0.3); background: linear-gradient(180deg, var(--bg-card) 0%, rgba(16,185,129,0.05) 100%); }
-.verdict-panel.rejected { border-color: rgba(239,68,68,0.3); background: linear-gradient(180deg, var(--bg-card) 0%, rgba(239,68,68,0.05) 100%); }
-.verdict-icon { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 12px; }
-.verdict-icon.validated { background: rgba(16,185,129,0.15); border: 2px solid var(--accent-green); }
-.verdict-icon.rejected { background: rgba(239,68,68,0.15); border: 2px solid var(--accent-red); }
-.verdict-icon.conditional { background: rgba(245,158,11,0.15); border: 2px solid var(--accent-amber); }
-.verdict-title { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
-.verdict-title.validated { color: var(--accent-green); }
-.verdict-title.rejected { color: var(--accent-red); }
-.verdict-title.conditional { color: var(--accent-amber); }
-.verdict-subtitle { font-size: 14px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; }
-.verdict-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-width: 500px; margin: 0 auto; }
-@media(min-width:768px){ .verdict-metrics { grid-template-columns: repeat(4, 1fr); } }
-.metric-box { background: var(--bg-input); border-radius: 12px; padding: 14px; }
-.metric-box .value { font-size: 22px; font-weight: 800; color: var(--text-primary); }
-.metric-box .value.positive { color: var(--accent-green); }
-.metric-box .value.negative { color: var(--accent-red); }
-.metric-box .label { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
-.table-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden; margin-bottom: 20px; }
-.table-header { padding: 16px 20px; border-bottom: 1px solid var(--border-color); font-size: 16px; font-weight: 700; }
-.comparison-table { width: 100%; border-collapse: collapse; }
-.comparison-table th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; background: var(--bg-input); }
-.comparison-table td { padding: 12px 16px; border-bottom: 1px solid rgba(30,58,95,0.3); font-size: 13px; }
-.comparison-table tr:last-child td { border-bottom: none; }
-.comparison-table .col-param { color: var(--text-secondary); font-weight: 500; width: 30%; }
-.comparison-table .col-traditional { color: var(--text-primary); width: 35%; }
-.comparison-table .col-aura { color: var(--text-primary); width: 35%; }
-.comparison-table .highlight { color: var(--accent-cyan); font-weight: 600; }
-.comparison-table .highlight-green { color: var(--accent-green); font-weight: 600; }
-.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
-.tag-green { background: rgba(16,185,129,0.15); color: var(--accent-green); }
-.tag-amber { background: rgba(245,158,11,0.15); color: var(--accent-amber); }
-.tag-red { background: rgba(239,68,68,0.15); color: var(--accent-red); }
-.tag-blue { background: rgba(59,130,246,0.15); color: var(--accent-blue); }
-.risk-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; margin-bottom: 20px; }
-.risk-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 14px; }
-@media(min-width:768px){ .risk-grid { grid-template-columns: repeat(2, 1fr); } }
-@media(min-width:1024px){ .risk-grid { grid-template-columns: repeat(3, 1fr); } }
-.risk-item { display: flex; align-items: center; gap: 14px; padding: 14px; background: var(--bg-input); border-radius: 12px; }
-.risk-gauge { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
-.risk-gauge.low { background: rgba(16,185,129,0.15); color: var(--accent-green); }
-.risk-gauge.medium { background: rgba(245,158,11,0.15); color: var(--accent-amber); }
-.risk-gauge.high { background: rgba(239,68,68,0.15); color: var(--accent-red); }
-.risk-info { min-width: 0; }
-.risk-info h4 { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
-.risk-info p { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
-.strategy-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.strategy-tag { padding: 5px 10px; background: var(--gradient-glow); border: 1px solid rgba(6,182,212,0.2); border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--accent-cyan); display: flex; align-items: center; gap: 5px; }
-.strategy-tag .dot { width: 5px; height: 5px; background: var(--accent-cyan); border-radius: 50%; animation: blink 2s infinite; }
-.app-footer { text-align: center; padding: 20px; color: var(--text-muted); font-size: 11px; border-top: 1px solid var(--border-color); margin-top: 20px; }
-.loading-overlay { display: none; position: fixed; inset: 0; background: rgba(10,14,23,0.95); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 20px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-.loading-overlay.active { display: flex; }
-.loading-spinner { width: 50px; height: 50px; border: 3px solid var(--border-color); border-top-color: var(--accent-cyan); border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to{transform:rotate(360deg)} }
-.loading-text { font-size: 13px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; }
-.loading-text::after { content: ''; animation: dots 1.5s infinite; }
-@keyframes dots { 0%,20%{content:'.'} 40%{content:'..'} 60%,100%{content:'...'} }
-.loading-status { font-size: 11px; color: var(--text-muted); margin-top: 8px; }
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-primary); }
-::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--accent-cyan); }
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--bg-card); border: 1px solid var(--accent-green); color: var(--accent-green); padding: 12px 24px; border-radius: 12px; font-size: 13px; font-weight: 600; z-index: 200; opacity: 0; transition: all 0.4s ease; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-.baggage-selector { display: flex; gap: 8px; flex-wrap: wrap; }
-.baggage-option { flex: 1; min-width: 140px; padding: 12px 14px; background: var(--bg-input); border: 2px solid var(--border-color); border-radius: 12px; cursor: pointer; transition: all 0.3s ease; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.baggage-option:hover { border-color: var(--accent-cyan); }
-.baggage-option.selected { border-color: var(--accent-cyan); background: rgba(6,182,212,0.1); }
-.baggage-option .bag-icon { font-size: 24px; }
-.baggage-option .bag-label { font-size: 12px; font-weight: 600; color: var(--text-primary); }
-.baggage-option .bag-desc { font-size: 10px; color: var(--text-muted); text-align: center; }
-.baggage-option.selected .bag-label { color: var(--accent-cyan); }
-.autocomplete-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; margin-top: 4px; max-height: 280px; overflow-y: auto; z-index: 50; display: none; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-.autocomplete-dropdown.active { display: block; }
-.autocomplete-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid rgba(30,58,95,0.3); transition: all 0.2s ease; }
-.autocomplete-item:last-child { border-bottom: none; }
-.autocomplete-item:hover { background: rgba(6,182,212,0.1); }
-.autocomplete-item .item-code { font-family: 'JetBrains Mono', monospace; color: var(--accent-cyan); font-weight: 700; font-size: 13px; }
-.autocomplete-item .item-name { font-size: 12px; color: var(--text-secondary); }
-.autocomplete-item .item-country { font-size: 10px; color: var(--text-muted); }
-.autocomplete-item.no-results { color: var(--text-muted); text-align: center; cursor: default; }
-.autocomplete-item.no-results:hover { background: transparent; }
+  :root{
+    --bg:#0b0d12;--card:#121520;--text:#e7ecf3;--muted:#97a3b6;
+    --accent:#1abc9c;--accent2:#0e8c76;--accent3:#8b5cf6;--accent4:#ef4444;
+    --warn:#f59e0b;--good:#10b981;--border:rgba(255,255,255,0.06);
+    --shadow:0 10px 35px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:radial-gradient(1200px 800px at 20% -10%,rgba(26,188,156,.12),transparent),
+               radial-gradient(1000px 700px at 110% 10%,rgba(139,92,246,.10),transparent),
+               var(--bg);
+    color:var(--text);min-height:100vh;
+  }
+  header{
+    position:sticky;top:0;z-index:40;background:rgba(11,13,18,.72);
+    backdrop-filter:saturate(1.2) blur(10px);border-bottom:1px solid var(--border);
+  }
+  .container{max-width:1100px;margin:0 auto;padding:22px}
+  h1{font-size:clamp(26px,4vw,38px);margin:0 0 6px}
+  .subtitle{color:var(--muted);margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+  .col-5{grid-column:span 5}
+  .col-7{grid-column:span 7}
+  .col-12{grid-column:span 12}
+  @media(max-width:920px){.col-5,.col-7{grid-column:span 12}}
+  .card{
+    background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));
+    border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow);
+  }
+  .card h2{margin:0 0 12px;font-size:16px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+  .field{margin-bottom:14px}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  input[type=text],input[type=date],input[type=number],select{
+    width:100%;background:rgba(255,255,255,.06);border:1px solid var(--border);
+    color:var(--text);padding:12px 12px;border-radius:12px;outline:none;font-size:14px;
+  }
+  input:focus,select:focus{border-color:var(--accent)}
+  .row{display:flex;gap:10px}
+  .row .field{flex:1}
+  .switches{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{
+    background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted);
+    padding:8px 12px;border-radius:999px;font-size:13px;cursor:pointer;user-select:none;
+  }
+  .chip.active{background:rgba(26,188,156,.15);border-color:rgba(26,188,156,.5);color:#c8f6e8}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  button.primary{
+    background:linear-gradient(180deg,var(--accent),var(--accent2));color:#fff;border:0;
+    padding:12px 16px;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 8px 22px rgba(14,140,118,.35);
+  }
+  button.ghost{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);padding:12px 16px;border-radius:12px;cursor:pointer}
+  .muted{color:var(--muted)}
+  .results{min-height:120px}
+  .flight-card{
+    background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;
+  }
+  .flight-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .flight-title{font-weight:800}
+  .badge{font-size:12px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);color:var(--muted)}
+  .badge.ok{background:rgba(16,185,129,.15);color:#a7f3d0}
+  .badge.warn{background:rgba(245,158,11,.15);color:#fde68a}
+  .badge.bad{background:rgba(239,68,68,.15);color:#fecaca}
+  .segments{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
+  .segment{background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:12px;padding:12px}
+  .segment .airports{font-weight:800}
+  .segment .meta{color:var(--muted);font-size:12px}
+  .verdict{
+    position:fixed;inset:0;z-index:50;display:none;place-items:center;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)
+  }
+  .verdict.open{display:grid}
+  .verdict-box{
+    max-width:720px;width:92%;max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--border);
+    border-radius:20px;padding:22px;box-shadow:var(--shadow);
+  }
+  .verdict-title{font-size:22px;margin:0 0 10px}
+  .verdict-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0}
+  .verdict-chip{padding:8px 12px;border-radius:999px;font-weight:700}
+  .chip-validated{background:rgba(16,185,129,.15);color:#a7f3d0}
+  .chip-conditional{background:rgba(245,158,11,.15);color:#fde68a}
+  .chip-rejected{background:rgba(239,68,68,.15);color:#fecaca}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+  th,td{border:1px solid var(--border);padding:10px;text-align:left}
+  th{background:rgba(255,255,255,.04);color:var(--muted);font-weight:600}
+  .pill{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill-trad{background:rgba(148,163,184,.12);color:#cbd5e1}
+  .pill-aura{background:rgba(139,92,246,.12);color:#ddd6fe}
+  .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .links a{
+    background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);
+    padding:10px 14px;border-radius:12px;text-decoration:none;font-size:13px;
+  }
+  .links a:hover{border-color:var(--accent)}
+  .toast{position:fixed;bottom:18px;right:18px;background:#0f172a;color:#e2e8f0;border:1px solid var(--border);padding:12px 16px;border-radius:12px;box-shadow:var(--shadow);transform:translateY(120%);opacity:0;transition:.3s ease}
+  .toast.show{transform:translateY(0);opacity:1}
+  .loading{display:none;align-items:center;gap:10px;margin-top:10px;color:var(--muted)}
+  .loading.open{display:flex}
+  .status{color:var(--accent);font-weight:700}
 </style>
-<base target="_blank">
 </head>
 <body>
-<div class="bg-grid"></div>
-<div class="bg-orb bg-orb-1"></div>
-<div class="bg-orb bg-orb-2"></div>
 
-<div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-spinner"></div>
-  <div class="loading-text">Aura Engine 2.0 analizando rutas</div>
-  <div class="loading-status" id="loadingStatus">Escaneando hubs virtuales...</div>
-</div>
+<header>
+  <div class="container">
+    <h1>Aura Engine 2.0</h1>
+    <div class="subtitle">Validador de Vuelos Internacionales con Recomendación de Estrategia de Compra</div>
+  </div>
+</header>
 
-<div class="toast" id="toast"></div>
-
-<div class="app-container">
-  <header class="header">
-    <div class="logo-section">
-      <div class="logo-icon">✈️</div>
-      <div class="logo-text">
-        <h1>Aura Engine 2.0</h1>
-        <p>Validador de Vuelos Avanzado</p>
-      </div>
-    </div>
-    <div class="status-badge">
-      <span class="status-dot"></span>
-      <span>Online</span>
-    </div>
-  </header>
-
-  <div class="search-panel">
-    <div class="panel-title"><span class="icon">🔍</span> Configurar Ruta de Validación</div>
-    <div class="search-grid">
-      <div class="input-group">
-        <label>Origen (Ciudad o Código IATA)</label>
-        <input type="text" id="originInput" placeholder="Escribe ciudad o código..." autocomplete="off" oninput="handleAirportInput('origin')" onfocus="showDropdown('origin')" onblur="hideDropdownDelayed('origin')">
-        <div class="autocomplete-dropdown" id="originDropdown"></div>
-        <div class="airport-code" id="originCodeDisplay">MAD · Madrid, España</div>
-        <div class="input-hint">Ej: Madrid, MAD, Barcelona, BCN...</div>
-      </div>
-      <div class="input-group">
-        <label>Destino (Ciudad o Código IATA)</label>
-        <input type="text" id="destInput" placeholder="Escribe ciudad o código..." autocomplete="off" oninput="handleAirportInput('dest')" onfocus="showDropdown('dest')" onblur="hideDropdownDelayed('dest')">
-        <div class="autocomplete-dropdown" id="destDropdown"></div>
-        <div class="airport-code" id="destCodeDisplay">NRT · Tokio (Narita), Japón</div>
-        <div class="input-hint">Ej: Tokio, NRT, Nueva York, JFK...</div>
-      </div>
-      <div class="input-group">
-        <label>Fecha Ida</label>
-        <input type="date" id="departDate" value="2026-09-15">
-      </div>
-      <div class="input-group">
-        <label>Fecha Vuelta</label>
-        <input type="date" id="returnDate" value="2026-09-25">
-      </div>
-      <div class="input-group">
-        <label>Pasajeros</label>
-        <select id="passengers"><option value="1">1 Adulto</option><option value="2">2 Adultos</option><option value="3">3 Adultos</option><option value="4">4 Adultos</option></select>
-      </div>
-      <div class="input-group">
-        <label>Clase</label>
-        <select id="cabinClass"><option value="economy">Economy</option><option value="premium">Premium Economy</option><option value="business">Business</option><option value="first">First</option></select>
-      </div>
-      <div class="input-group full-width">
-        <label>Equipaje</label>
-        <div class="baggage-selector">
-          <div class="baggage-option selected" data-value="carryon" onclick="selectBaggage(this)">
-            <span class="bag-icon">🎒</span>
-            <span class="bag-label">Solo Equipaje de Mano</span>
-            <span class="bag-desc">1 bolso personal + 1 maleta de mano</span>
+<div class="container" style="margin-top:18px">
+  <div class="grid">
+    <div class="col-5">
+      <div class="card">
+        <h2>Parámetros del viaje</h2>
+        <div class="row">
+          <div class="field">
+            <label>Origen (Aeropuerto o Ciudad)</label>
+            <input type="text" id="originInput" placeholder="Ej: Madrid (MAD)">
+            <div id="originSuggestions" style="margin-top:6px"></div>
           </div>
-          <div class="baggage-option" data-value="checked" onclick="selectBaggage(this)">
-            <span class="bag-icon">🧳</span>
-            <span class="bag-label">Maleta Documentada</span>
-            <span class="bag-desc">1 bolso personal + 1 maleta de mano + 1 maleta de bodega (hasta 23kg)</span>
+          <div class="field">
+            <label>Destino (Aeropuerto o Ciudad)</label>
+            <input type="text" id="destInput" placeholder="Ej: Tokio (NRT)">
+            <div id="destSuggestions" style="margin-top:6px"></div>
           </div>
-          <div class="baggage-option" data-value="checked2" onclick="selectBaggage(this)">
-            <span class="bag-icon">🧳🧳</span>
-            <span class="bag-label">2 Maletas Documentadas</span>
-            <span class="bag-desc">1 bolso personal + 1 maleta de mano + 2 maletas de bodega</span>
+        </div>
+        <div class="row">
+          <div class="field"><label>Fecha de salida</label><input type="date" id="depDate"></div>
+          <div class="field"><label>Fecha de regreso (opcional)</label><input type="date" id="retDate"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Pasajeros</label><input type="number" id="pax" value="1" min="1" max="9></div>
+          <div class="field"><label>Moneda</label>
+            <select id="currency">
+              <option value="USD">USD - Dólar</option>
+              <option value="EUR">EUR - Euro</option>
+              <option value="GBP">GBP - Libra</option>
+              <option value="COP">COP - Peso colombiano</option>
+              <option value="MXN">MXN - Peso mexicano</option>
+            </select>
           </div>
+        </div>
+        <div class="field">
+          <label>Equipaje</label>
+          <div class="switches" id="baggageOptions">
+            <div class="chip active" data-bag="carry-on">Solo Carry-on</div>
+            <div class="chip" data-bag="checked">1 Maleta documentada</div>
+            <div class="chip" data-bag="both">Carry-on + Documentada</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" id="analyzeBtn">Analizar vuelos</button>
+          <button class="ghost" id="resetBtn">Limpiar</button>
+        </div>
+        <div class="loading" id="loading">
+          <span class="status" id="statusText">Consultando disponibilidad...</span>
         </div>
       </div>
     </div>
 
-    <div class="route-display">
-      <div class="route-airport"><div class="code" id="originCode">MAD</div><div class="name" id="originName">Madrid, España</div></div>
-      <div class="route-arrow"><div class="line"></div><span class="distance" id="routeDistance">10,770 km</span></div>
-      <div class="route-airport"><div class="code" id="destCode">NRT</div><div class="name" id="destName">Tokio (Narita), Japón</div></div>
-    </div>
-
-    <button class="search-btn" onclick="runAnalysis()"><span class="btn-shine"></span>🚀 Ejecutar Validación Aura vs Google Flights</button>
-  </div>
-
-  <div class="results-section" id="resultsSection">
-    <div class="verdict-panel validated" id="verdictPanel">
-      <div class="verdict-icon validated" id="verdictIcon">✅</div>
-      <div class="verdict-title validated" id="verdictTitle">AURA VALIDADO</div>
-      <div class="verdict-subtitle" id="verdictSubtitle">El motor Aura supera a Google Flights con ahorro significativo y seguridad operacional garantizada</div>
-      <div class="verdict-metrics">
-        <div class="metric-box"><div class="value positive" id="savingsValue">34.2%</div><div class="label">Ahorro vs Tradicional</div></div>
-        <div class="metric-box"><div class="value" id="priceValue">$562</div><div class="label">Precio Aura Optimizado</div></div>
-        <div class="metric-box"><div class="value positive" id="bufferValue">4.5h</div><div class="label">Buffer de Conexión</div></div>
-        <div class="metric-box"><div class="value" id="riskValue">Medio</div><div class="label">Nivel de Riesgo</div></div>
+    <div class="col-7">
+      <div class="card">
+        <h2>Resultados</h2>
+        <div id="results" class="results muted">Completa origen y destino, luego presiona "Analizar vuelos".</div>
       </div>
     </div>
-
-    <div class="section-header">
-      <div class="section-title">Resultados de Búsqueda</div>
-      <div class="comparison-toggle">
-        <button class="toggle-btn active" onclick="showView('all')">Todos</button>
-        <button class="toggle-btn" onclick="showView('traditional')">Tradicionales</button>
-        <button class="toggle-btn" onclick="showView('aura')">Aura</button>
-      </div>
-    </div>
-
-    <div class="cards-grid" id="cardsGrid"></div>
-
-    <div class="table-panel">
-      <div class="table-header">📊 Tabla Comparativa Detallada</div>
-      <table class="comparison-table" id="comparisonTable">
-        <thead><tr><th>Parámetro</th><th>Vuelo Tradicional</th><th>Ruta Aura Optimized</th></tr></thead>
-        <tbody id="comparisonTableBody"></tbody>
-      </table>
-    </div>
-
-    <div class="risk-panel">
-      <div class="panel-title"><span class="icon">🎯</span> Análisis de Riesgo vs. Recompensa</div>
-      <div class="risk-grid" id="riskGrid"></div>
-    </div>
-
-    <div class="table-panel">
-      <div class="table-header">🔗 Links de Compra Directa (Datos Precargados)</div>
-      <table class="comparison-table" id="linksTable">
-        <thead><tr><th>Motor / Aerolínea</th><th>Estrategia</th><th>Acción</th></tr></thead>
-        <tbody id="linksTableBody"></tbody>
-      </table>
-    </div>
   </div>
-
-  <footer class="app-footer">Aura Engine 2.0 · Revenue Management Avanzado · Datos Mayo 2026 · <span style="color:var(--accent-cyan)">Precios estimados en USD, no garantizados en tiempo real</span></footer>
 </div>
+
+<div class="verdict" id="verdictModal">
+  <div class="verdict-box">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="verdict-title" id="verdictTitle">Veredicto Aura</div>
+      <button class="ghost" id="closeVerdict">Cerrar</button>
+    </div>
+    <div id="verdictBody"></div>
+    <div class="links" style="margin-top:14px">
+      <a id="linkGoogle" href="https://www.google.com/flights" target="_blank" rel="noopener noreferrer">Google Flights</a>
+      <a id="linkSky" href="https://www.skyscanner.com" target="_blank" rel="noopener noreferrer">Skyscanner</a>
+      <a id="linkAirline" href="https://www.google.com/search?q=official+airline+website+flights" target="_blank" rel="noopener noreferrer">Airlines (Directo)</a>
+      <a id="linkMomondo" href="https://www.momondo.com" target="_blank" rel="noopener noreferrer">Momondo</a>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
 <script>
-"use strict";
+(function(){
+  'use strict';
 
-const airports = [
-{code:"MAD",city:"Madrid",country:"España",region:"Europa"},
-{code:"BCN",city:"Barcelona",country:"España",region:"Europa"},
-{code:"AGP",city:"Málaga",country:"España",region:"Europa"},
-{code:"ALC",city:"Alicante",country:"España",region:"Europa"},
-{code:"VLC",city:"Valencia",country:"España",region:"Europa"},
-{code:"SVQ",city:"Sevilla",country:"España",region:"Europa"},
-{code:"BIO",city:"Bilbao",country:"España",region:"Europa"},
-{code:"PMI",city:"Palma de Mallorca",country:"España",region:"Europa"},
-{code:"LPA",city:"Las Palmas",country:"España",region:"Europa"},
-{code:"TCI",city:"Tenerife",country:"España",region:"Europa"},
-{code:"LHR",city:"Londres",country:"Reino Unido",region:"Europa"},
-{code:"LGW",city:"Londres (Gatwick)",country:"Reino Unido",region:"Europa"},
-{code:"STN",city:"Londres (Stansted)",country:"Reino Unido",region:"Europa"},
-{code:"MAN",city:"Manchester",country:"Reino Unido",region:"Europa"},
-{code:"EDI",city:"Edimburgo",country:"Reino Unido",region:"Europa"},
-{code:"GLA",city:"Glasgow",country:"Reino Unido",region:"Europa"},
-{code:"BHX",city:"Birmingham",country:"Reino Unido",region:"Europa"},
-{code:"BRS",city:"Bristol",country:"Reino Unido",region:"Europa"},
-{code:"NCL",city:"Newcastle",country:"Reino Unido",region:"Europa"},
-{code:"CDG",city:"París",country:"Francia",region:"Europa"},
-{code:"ORY",city:"París (Orly)",country:"Francia",region:"Europa"},
-{code:"NCE",city:"Niza",country:"Francia",region:"Europa"},
-{code:"LYS",city:"Lyon",country:"Francia",region:"Europa"},
-{code:"MRS",city:"Marsella",country:"Francia",region:"Europa"},
-{code:"TLS",city:"Toulouse",country:"Francia",region:"Europa"},
-{code:"BOD",city:"Burdeos",country:"Francia",region:"Europa"},
-{code:"FCO",city:"Roma",country:"Italia",region:"Europa"},
-{code:"MXP",city:"Milán (Malpensa)",country:"Italia",region:"Europa"},
-{code:"LIN",city:"Milán (Linate)",country:"Italia",region:"Europa"},
-{code:"VCE",city:"Venecia",country:"Italia",region:"Europa"},
-{code:"NAP",city:"Nápoles",country:"Italia",region:"Europa"},
-{code:"CTA",city:"Catania",country:"Italia",region:"Europa"},
-{code:"BGY",city:"Bérgamo",country:"Italia",region:"Europa"},
-{code:"BLQ",city:"Bolonia",country:"Italia",region:"Europa"},
-{code:"PSA",city:"Pisa",country:"Italia",region:"Europa"},
-{code:"TRN",city:"Turín",country:"Italia",region:"Europa"},
-{code:"AMS",city:"Ámsterdam",country:"Países Bajos",region:"Europa"},
-{code:"RTM",city:"Róterdam",country:"Países Bajos",region:"Europa"},
-{code:"EIN",city:"Eindhoven",country:"Países Bajos",region:"Europa"},
-{code:"FRA",city:"Fráncfort",country:"Alemania",region:"Europa"},
-{code:"MUC",city:"Múnich",country:"Alemania",region:"Europa"},
-{code:"BER",city:"Berlín",country:"Alemania",region:"Europa"},
-{code:"HAM",city:"Hamburgo",country:"Alemania",region:"Europa"},
-{code:"DUS",city:"Düsseldorf",country:"Alemania",region:"Europa"},
-{code:"CGN",city:"Colonia",country:"Alemania",region:"Europa"},
-{code:"STR",city:"Stuttgart",country:"Alemania",region:"Europa"},
-{code:"NUE",city:"Núremberg",country:"Alemania",region:"Europa"},
-{code:"LEJ",city:"Leipzig",country:"Alemania",region:"Europa"},
-{code:"ZRH",city:"Zúrich",country:"Suiza",region:"Europa"},
-{code:"GVA",city:"Ginebra",country:"Suiza",region:"Europa"},
-{code:"BSL",city:"Basilea",country:"Suiza",region:"Europa"},
-{code:"VIE",city:"Viena",country:"Austria",region:"Europa"},
-{code:"SZG",city:"Salzburgo",country:"Austria",region:"Europa"},
-{code:"GRZ",city:"Graz",country:"Austria",region:"Europa"},
-{code:"CPH",city:"Copenhague",country:"Dinamarca",region:"Europa"},
-{code:"BLL",city:"Billund",country:"Dinamarca",region:"Europa"},
-{code:"ARN",city:"Estocolmo",country:"Suecia",region:"Europa"},
-{code:"GOT",city:"Gotemburgo",country:"Suecia",region:"Europa"},
-{code:"MMX",city:"Malmö",country:"Suecia",region:"Europa"},
-{code:"OSL",city:"Oslo",country:"Noruega",region:"Europa"},
-{code:"BGO",city:"Bergen",country:"Noruega",region:"Europa"},
-{code:"TRD",city:"Trondheim",country:"Noruega",region:"Europa"},
-{code:"HEL",city:"Helsinki",country:"Finlandia",region:"Europa"},
-{code:"RVN",city:"Rovaniemi",country:"Finlandia",region:"Europa"},
-{code:"DUB",city:"Dublín",country:"Irlanda",region:"Europa"},
-{code:"ORK",city:"Cork",country:"Irlanda",region:"Europa"},
-{code:"SNN",city:"Shannon",country:"Irlanda",region:"Europa"},
-{code:"LIS",city:"Lisboa",country:"Portugal",region:"Europa"},
-{code:"OPO",city:"Oporto",country:"Portugal",region:"Europa"},
-{code:"FAO",city:"Faro",country:"Portugal",region:"Europa"},
-{code:"ATH",city:"Atenas",country:"Grecia",region:"Europa"},
-{code:"SKG",city:"Tesalónica",country:"Grecia",region:"Europa"},
-{code:"HER",city:"Heraklion",country:"Grecia",region:"Europa"},
-{code:"WAW",city:"Varsovia",country:"Polonia",region:"Europa"},
-{code:"KRK",city:"Cracovia",country:"Polonia",region:"Europa"},
-{code:"GDN",city:"Gdansk",country:"Polonia",region:"Europa"},
-{code:"PRG",city:"Praga",country:"Rep. Checa",region:"Europa"},
-{code:"BRQ",city:"Brno",country:"Rep. Checa",region:"Europa"},
-{code:"BUD",city:"Budapest",country:"Hungría",region:"Europa"},
-{code:"DEB",city:"Debrecen",country:"Hungría",region:"Europa"},
-{code:"IST",city:"Estambul",country:"Turquía",region:"Europa/Asia"},
-{code:"SAW",city:"Estambul (Sabiha)",country:"Turquía",region:"Europa/Asia"},
-{code:"AYT",city:"Antalya",country:"Turquía",region:"Europa/Asia"},
-{code:"ESB",city:"Ankara",country:"Turquía",region:"Europa/Asia"},
-{code:"BRU",city:"Bruselas",country:"Bélgica",region:"Europa"},
-{code:"CRL",city:"Bruselas (Charleroi)",country:"Bélgica",region:"Europa"},
-{code:"LUX",city:"Luxemburgo",country:"Luxemburgo",region:"Europa"},
-{code:"PRN",city:"Pristina",country:"Kosovo",region:"Europa"},
-{code:"TIA",city:"Tirana",country:"Albania",region:"Europa"},
-{code:"SOF",city:"Sofía",country:"Bulgaria",region:"Europa"},
-{code:"VAR",city:"Varna",country:"Bulgaria",region:"Europa"},
-{code:"OTP",city:"Bucarest",country:"Rumania",region:"Europa"},
-{code:"CLJ",city:"Cluj-Napoca",country:"Rumania",region:"Europa"},
-{code:"TSR",city:"Timisoara",country:"Rumania",region:"Europa"},
-{code:"BEG",city:"Belgrado",country:"Serbia",region:"Europa"},
-{code:"ZAG",city:"Zagreb",country:"Croacia",region:"Europa"},
-{code:"SPU",city:"Split",country:"Croacia",region:"Europa"},
-{code:"DBV",city:"Dubrovnik",country:"Croacia",region:"Europa"},
-{code:"LJU",city:"Liubliana",country:"Eslovenia",region:"Europa"},
-{code:"SKP",city:"Skopie",country:"Macedonia del Norte",region:"Europa"},
-{code:"TGD",city:"Podgorica",country:"Montenegro",region:"Europa"},
-{code:"TIV",city:"Tivat",country:"Montenegro",region:"Europa"},
-{code:"SJJ",city:"Sarajevo",country:"Bosnia y Herzegovina",region:"Europa"},
-{code:"IEV",city:"Kiev",country:"Ucrania",region:"Europa"},
-{code:"KBP",city:"Kiev (Boryspil)",country:"Ucrania",region:"Europa"},
-{code:"LED",city:"San Petersburgo",country:"Rusia",region:"Europa"},
-{code:"SVO",city:"Moscú",country:"Rusia",region:"Europa"},
-{code:"DME",city:"Moscú (Domodedovo)",country:"Rusia",region:"Europa"},
-{code:"KZN",city:"Kazan",country:"Rusia",region:"Europa"},
-{code:"SVX",city:"Ekaterimburgo",country:"Rusia",region:"Europa"},
-{code:"OVB",city:"Novosibirsk",country:"Rusia",region:"Europa"},
-{code:"KRR",city:"Krasnodar",country:"Rusia",region:"Europa"},
-{code:"TLL",city:"Tallin",country:"Estonia",region:"Europa"},
-{code:"RIX",city:"Riga",country:"Letonia",region:"Europa"},
-{code:"VNO",city:"Vilna",country:"Lituania",region:"Europa"},
-{code:"KUN",city:"Kaunas",country:"Lituania",region:"Europa"},
-{code:"MLA",city:"Malta",country:"Malta",region:"Europa"},
-{code:"KEF",city:"Reikiavik",country:"Islandia",region:"Europa"},
-{code:"GIB",city:"Gibraltar",country:"Gibraltar",region:"Europa"},
-{code:"LCA",city:"Larnaca",country:"Chipre",region:"Europa"},
-{code:"PFO",city:"Pafos",country:"Chipre",region:"Europa"},
-{code:"DXB",city:"Dubái",country:"EAU",region:"Oriente Medio"},
-{code:"AUH",city:"Abu Dhabi",country:"EAU",region:"Oriente Medio"},
-{code:"SHJ",city:"Sharjah",country:"EAU",region:"Oriente Medio"},
-{code:"DOH",city:"Doha",country:"Qatar",region:"Oriente Medio"},
-{code:"JED",city:"Yeda",country:"Arabia Saudita",region:"Oriente Medio"},
-{code:"RUH",city:"Riad",country:"Arabia Saudita",region:"Oriente Medio"},
-{code:"DMM",city:"Dammam",country:"Arabia Saudita",region:"Oriente Medio"},
-{code:"MED",city:"Medina",country:"Arabia Saudita",region:"Oriente Medio"},
-{code:"TLV",city:"Tel Aviv",country:"Israel",region:"Oriente Medio"},
-{code:"AMM",city:"Amán",country:"Jordania",region:"Oriente Medio"},
-{code:"AQJ",city:"Aqaba",country:"Jordania",region:"Oriente Medio"},
-{code:"BEY",city:"Beirut",country:"Líbano",region:"Oriente Medio"},
-{code:"BAH",city:"Manama",country:"Baréin",region:"Oriente Medio"},
-{code:"MCT",city:"Mascate",country:"Omán",region:"Oriente Medio"},
-{code:"KWI",city:"Kuwait",country:"Kuwait",region:"Oriente Medio"},
-{code:"BGW",city:"Bagdad",country:"Irak",region:"Oriente Medio"},
-{code:"IKA",city:"Teherán",country:"Irán",region:"Oriente Medio"},
-{code:"ISB",city:"Islamabad",country:"Pakistán",region:"Oriente Medio"},
-{code:"KHI",city:"Karachi",country:"Pakistán",region:"Oriente Medio"},
-{code:"LHE",city:"Lahore",country:"Pakistán",region:"Oriente Medio"},
-{code:"KBL",city:"Kabul",country:"Afganistán",region:"Oriente Medio"},
-{code:"GYD",city:"Bakú",country:"Azerbaiyán",region:"Oriente Medio"},
-{code:"EVN",city:"Ereván",country:"Armenia",region:"Oriente Medio"},
-{code:"TBS",city:"Tiflis",country:"Georgia",region:"Oriente Medio"},
-{code:"NRT",city:"Tokio (Narita)",country:"Japón",region:"Asia"},
-{code:"HND",city:"Tokio (Haneda)",country:"Japón",region:"Asia"},
-{code:"KIX",city:"Osaka",country:"Japón",region:"Asia"},
-{code:"NGO",city:"Nagoya",country:"Japón",region:"Asia"},
-{code:"FUK",city:"Fukuoka",country:"Japón",region:"Asia"},
-{code:"CTS",city:"Sapporo",country:"Japón",region:"Asia"},
-{code:"OKA",city:"Okinawa",country:"Japón",region:"Asia"},
-{code:"ICN",city:"Seúl",country:"Corea del Sur",region:"Asia"},
-{code:"PUS",city:"Busan",country:"Corea del Sur",region:"Asia"},
-{code:"CJU",city:"Jeju",country:"Corea del Sur",region:"Asia"},
-{code:"BKK",city:"Bangkok",country:"Tailandia",region:"Asia"},
-{code:"DMK",city:"Bangkok (Don Mueang)",country:"Tailandia",region:"Asia"},
-{code:"HKT",city:"Phuket",country:"Tailandia",region:"Asia"},
-{code:"CNX",city:"Chiang Mai",country:"Tailandia",region:"Asia"},
-{code:"SIN",city:"Singapur",country:"Singapur",region:"Asia"},
-{code:"KUL",city:"Kuala Lumpur",country:"Malasia",region:"Asia"},
-{code:"PEN",city:"Penang",country:"Malasia",region:"Asia"},
-{code:"CGK",city:"Yakarta",country:"Indonesia",region:"Asia"},
-{code:"DPS",city:"Denpasar (Bali)",country:"Indonesia",region:"Asia"},
-{code:"SUB",city:"Surabaya",country:"Indonesia",region:"Asia"},
-{code:"MNL",city:"Manila",country:"Filipinas",region:"Asia"},
-{code:"CEB",city:"Cebú",country:"Filipinas",region:"Asia"},
-{code:"HKG",city:"Hong Kong",country:"China",region:"Asia"},
-{code:"PVG",city:"Shanghái",country:"China",region:"Asia"},
-{code:"PEK",city:"Pekín",country:"China",region:"Asia"},
-{code:"CAN",city:"Cantón",country:"China",region:"Asia"},
-{code:"SZX",city:"Shenzhen",country:"China",region:"Asia"},
-{code:"CTU",city:"Chengdu",country:"China",region:"Asia"},
-{code:"XIY",city:"Xi'an",country:"China",region:"Asia"},
-{code:"HGH",city:"Hangzhou",country:"China",region:"Asia"},
-{code:"DEL",city:"Nueva Delhi",country:"India",region:"Asia"},
-{code:"BOM",city:"Bombay",country:"India",region:"Asia"},
-{code:"MAA",city:"Chennai",country:"India",region:"Asia"},
-{code:"BLR",city:"Bangalore",country:"India",region:"Asia"},
-{code:"HYD",city:"Hyderabad",country:"India",region:"Asia"},
-{code:"CCU",city:"Calcuta",country:"India",region:"Asia"},
-{code:"AMD",city:"Ahmedabad",country:"India",region:"Asia"},
-{code:"COK",city:"Cochin",country:"India",region:"Asia"},
-{code:"GOI",city:"Goa",country:"India",region:"Asia"},
-{code:"PNQ",city:"Pune",country:"India",region:"Asia"},
-{code:"DAC",city:"Daca",country:"Bangladesh",region:"Asia"},
-{code:"KTM",city:"Katmandú",country:"Nepal",region:"Asia"},
-{code:"MLE",city:"Malé",country:"Maldivas",region:"Asia"},
-{code:"CMB",city:"Colombo",country:"Sri Lanka",region:"Asia"},
-{code:"HAN",city:"Hanoi",country:"Vietnam",region:"Asia"},
-{code:"SGN",city:"Ciudad Ho Chi Minh",country:"Vietnam",region:"Asia"},
-{code:"DAD",city:"Da Nang",country:"Vietnam",region:"Asia"},
-{code:"PNH",city:"Phnom Penh",country:"Camboya",region:"Asia"},
-{code:"RGN",city:"Yangón",country:"Myanmar",region:"Asia"},
-{code:"VTE",city:"Vientián",country:"Laos",region:"Asia"},
-{code:"ULN",city:"Ulán Bator",country:"Mongolia",region:"Asia"},
-{code:"ALA",city:"Almaty",country:"Kazajistán",region:"Asia"},
-{code:"TAS",city:"Taskent",country:"Uzbekistán",region:"Asia"},
-{code:"BWN",city:"Bandar Seri Begawan",country:"Brunéi",region:"Asia"},
-{code:"JFK",city:"Nueva York",country:"Estados Unidos",region:"Norteamérica"},
-{code:"LGA",city:"Nueva York (LaGuardia)",country:"Estados Unidos",region:"Norteamérica"},
-{code:"EWR",city:"Nueva York (Newark)",country:"Estados Unidos",region:"Norteamérica"},
-{code:"LAX",city:"Los Ángeles",country:"Estados Unidos",region:"Norteamérica"},
-{code:"SFO",city:"San Francisco",country:"Estados Unidos",region:"Norteamérica"},
-{code:"ORD",city:"Chicago",country:"Estados Unidos",region:"Norteamérica"},
-{code:"MIA",city:"Miami",country:"Estados Unidos",region:"Norteamérica"},
-{code:"DFW",city:"Dallas",country:"Estados Unidos",region:"Norteamérica"},
-{code:"DEN",city:"Denver",country:"Estados Unidos",region:"Norteamérica"},
-{code:"SEA",city:"Seattle",country:"Estados Unidos",region:"Norteamérica"},
-{code:"BOS",city:"Boston",country:"Estados Unidos",region:"Norteamérica"},
-{code:"LAS",city:"Las Vegas",country:"Estados Unidos",region:"Norteamérica"},
-{code:"ATL",city:"Atlanta",country:"Estados Unidos",region:"Norteamérica"},
-{code:"PHX",city:"Phoenix",country:"Estados Unidos",region:"Norteamérica"},
-{code:"PHL",city:"Filadelfia",country:"Estados Unidos",region:"Norteamérica"},
-{code:"IAD",city:"Washington DC",country:"Estados Unidos",region:"Norteamérica"},
-{code:"DCA",city:"Washington DC (National)",country:"Estados Unidos",region:"Norteamérica"},
-{code:"DTW",city:"Detroit",country:"Estados Unidos",region:"Norteamérica"},
-{code:"MSP",city:"Minneapolis",country:"Estados Unidos",region:"Norteamérica"},
-{code:"CLT",city:"Charlotte",country:"Estados Unidos",region:"Norteamérica"},
-{code:"MCO",city:"Orlando",country:"Estados Unidos",region:"Norteamérica"},
-{code:"TPA",city:"Tampa",country:"Estados Unidos",region:"Norteamérica"},
-{code:"SAN",city:"San Diego",country:"Estados Unidos",region:"Norteamérica"},
-{code:"PDX",city:"Portland",country:"Estados Unidos",region:"Norteamérica"},
-{code:"SLC",city:"Salt Lake City",country:"Estados Unidos",region:"Norteamérica"},
-{code:"AUS",city:"Austin",country:"Estados Unidos",region:"Norteamérica"},
-{code:"BNA",city:"Nashville",country:"Estados Unidos",region:"Norteamérica"},
-{code:"RDU",city:"Raleigh",country:"Estados Unidos",region:"Norteamérica"},
-{code:"STL",city:"St. Louis",country:"Estados Unidos",region:"Norteamérica"},
-{code:"CLE",city:"Cleveland",country:"Estados Unidos",region:"Norteamérica"},
-{code:"PIT",city:"Pittsburgh",country:"Estados Unidos",region:"Norteamérica"},
-{code:"IND",city:"Indianápolis",country:"Estados Unidos",region:"Norteamérica"},
-{code:"CMH",city:"Columbus",country:"Estados Unidos",region:"Norteamérica"},
-{code:"MCI",city:"Kansas City",country:"Estados Unidos",region:"Norteamérica"},
-{code:"SAT",city:"San Antonio",country:"Estados Unidos",region:"Norteamérica"},
-{code:"MSY",city:"Nueva Orleans",country:"Estados Unidos",region:"Norteamérica"},
-{code:"HNL",city:"Honolulu",country:"Estados Unidos",region:"Norteamérica"},
-{code:"ANC",city:"Anchorage",country:"Estados Unidos",region:"Norteamérica"},
-{code:"FLL",city:"Fort Lauderdale",country:"Estados Unidos",region:"Norteamérica"},
-{code:"YYZ",city:"Toronto",country:"Canadá",region:"Norteamérica"},
-{code:"YVR",city:"Vancouver",country:"Canadá",region:"Norteamérica"},
-{code:"YUL",city:"Montreal",country:"Canadá",region:"Norteamérica"},
-{code:"YYC",city:"Calgary",country:"Canadá",region:"Norteamérica"},
-{code:"YEG",city:"Edmonton",country:"Canadá",region:"Norteamérica"},
-{code:"YOW",city:"Ottawa",country:"Canadá",region:"Norteamérica"},
-{code:"MEX",city:"Ciudad de México",country:"México",region:"Norteamérica"},
-{code:"MID",city:"Mérida",country:"México",region:"Norteamérica"},
-{code:"VSA",city:"Villahermosa",country:"México",region:"Norteamérica"},
-{code:"VER",city:"Veracruz",country:"México",region:"Norteamérica"},
-{code:"OAX",city:"Oaxaca",country:"México",region:"Norteamérica"},
-{code:"TGZ",city:"Tuxtla Gutiérrez",country:"México",region:"Norteamérica"},
-{code:"HUX",city:"Huatulco",country:"México",region:"Norteamérica"},
-{code:"ZIH",city:"Ixtapa-Zihuatanejo",country:"México",region:"Norteamérica"},
-{code:"MZT",city:"Mazatlán",country:"México",region:"Norteamérica"},
-{code:"LAP",city:"La Paz",country:"México",region:"Norteamérica"},
-{code:"CZM",city:"Cozumel",country:"México",region:"Norteamérica"},
-{code:"CPE",city:"Campeche",country:"México",region:"Norteamérica"},
-{code:"PBC",city:"Puebla",country:"México",region:"Norteamérica"},
-{code:"QRO",city:"Querétaro",country:"México",region:"Norteamérica"},
-{code:"SLP",city:"San Luis Potosí",country:"México",region:"Norteamérica"},
-{code:"AGU",city:"Aguascalientes",country:"México",region:"Norteamérica"},
-{code:"BJX",city:"León",country:"México",region:"Norteamérica"},
-{code:"CUN",city:"Cancún",country:"México",region:"Norteamérica"},
-{code:"GDL",city:"Guadalajara",country:"México",region:"Norteamérica"},
-{code:"MTY",city:"Monterrey",country:"México",region:"Norteamérica"},
-{code:"TIJ",city:"Tijuana",country:"México",region:"Norteamérica"},
-{code:"SJD",city:"Los Cabos",country:"México",region:"Norteamérica"},
-{code:"PVR",city:"Puerto Vallarta",country:"México",region:"Norteamérica"},
-{code:"ACA",city:"Acapulco",country:"México",region:"Norteamérica"},
-{code:"HAV",city:"La Habana",country:"Cuba",region:"Norteamérica"},
-{code:"SJU",city:"San Juan",country:"Puerto Rico",region:"Norteamérica"},
-{code:"PTY",city:"Ciudad de Panamá",country:"Panamá",region:"Norteamérica"},
-{code:"SJO",city:"San José",country:"Costa Rica",region:"Norteamérica"},
-{code:"GUA",city:"Ciudad de Guatemala",country:"Guatemala",region:"Norteamérica"},
-{code:"SAL",city:"San Salvador",country:"El Salvador",region:"Norteamérica"},
-{code:"TGU",city:"Tegucigalpa",country:"Honduras",region:"Norteamérica"},
-{code:"MGA",city:"Managua",country:"Nicaragua",region:"Norteamérica"},
-{code:"KIN",city:"Kingston",country:"Jamaica",region:"Norteamérica"},
-{code:"NAS",city:"Nasáu",country:"Bahamas",region:"Norteamérica"},
-{code:"BZE",city:"Belice",country:"Belice",region:"Norteamérica"},
-{code:"GRU",city:"São Paulo",country:"Brasil",region:"Sudamérica"},
-{code:"GIG",city:"Río de Janeiro",country:"Brasil",region:"Sudamérica"},
-{code:"BSB",city:"Brasilia",country:"Brasil",region:"Sudamérica"},
-{code:"CNF",city:"Belo Horizonte",country:"Brasil",region:"Sudamérica"},
-{code:"POA",city:"Porto Alegre",country:"Brasil",region:"Sudamérica"},
-{code:"FLN",city:"Florianópolis",country:"Brasil",region:"Sudamérica"},
-{code:"REC",city:"Recife",country:"Brasil",region:"Sudamérica"},
-{code:"FOR",city:"Fortaleza",country:"Brasil",region:"Sudamérica"},
-{code:"SSA",city:"Salvador",country:"Brasil",region:"Sudamérica"},
-{code:"MAO",city:"Manaos",country:"Brasil",region:"Sudamérica"},
-{code:"BEL",city:"Belém",country:"Brasil",region:"Sudamérica"},
-{code:"EZE",city:"Buenos Aires",country:"Argentina",region:"Sudamérica"},
-{code:"AEP",city:"Buenos Aires (Aeroparque)",country:"Argentina",region:"Sudamérica"},
-{code:"COR",city:"Córdoba",country:"Argentina",region:"Sudamérica"},
-{code:"MDZ",city:"Mendoza",country:"Argentina",region:"Sudamérica"},
-{code:"IGR",city:"Puerto Iguazú",country:"Argentina",region:"Sudamérica"},
-{code:"USH",city:"Ushuaia",country:"Argentina",region:"Sudamérica"},
-{code:"BRC",city:"Bariloche",country:"Argentina",region:"Sudamérica"},
-{code:"SCL",city:"Santiago",country:"Chile",region:"Sudamérica"},
-{code:"ANF",city:"Antofagasta",country:"Chile",region:"Sudamérica"},
-{code:"CCP",city:"Concepción",country:"Chile",region:"Sudamérica"},
-{code:"PUQ",city:"Punta Arenas",country:"Chile",region:"Sudamérica"},
-{code:"LIM",city:"Lima",country:"Perú",region:"Sudamérica"},
-{code:"CUZ",city:"Cusco",country:"Perú",region:"Sudamérica"},
-{code:"AQP",city:"Arequipa",country:"Perú",region:"Sudamérica"},
-{code:"BOG",city:"Bogotá",country:"Colombia",region:"Sudamérica"},
-{code:"MDE",city:"Medellín",country:"Colombia",region:"Sudamérica"},
-{code:"CTG",city:"Cartagena",country:"Colombia",region:"Sudamérica"},
-{code:"CLO",city:"Cali",country:"Colombia",region:"Sudamérica"},
-{code:"BAQ",city:"Barranquilla",country:"Colombia",region:"Sudamérica"},
-{code:"SMR",city:"Santa Marta",country:"Colombia",region:"Sudamérica"},
-{code:"UIO",city:"Quito",country:"Ecuador",region:"Sudamérica"},
-{code:"GYE",city:"Guayaquil",country:"Ecuador",region:"Sudamérica"},
-{code:"LPB",city:"La Paz",country:"Bolivia",region:"Sudamérica"},
-{code:"VVI",city:"Santa Cruz",country:"Bolivia",region:"Sudamérica"},
-{code:"CCS",city:"Caracas",country:"Venezuela",region:"Sudamérica"},
-{code:"MVD",city:"Montevideo",country:"Uruguay",region:"Sudamérica"},
-{code:"ASU",city:"Asunción",country:"Paraguay",region:"Sudamérica"},
-{code:"JNB",city:"Johannesburgo",country:"Sudáfrica",region:"África"},
-{code:"CPT",city:"Ciudad del Cabo",country:"Sudáfrica",region:"África"},
-{code:"DUR",city:"Durban",country:"Sudáfrica",region:"África"},
-{code:"CAI",city:"El Cairo",country:"Egipto",region:"África"},
-{code:"HRG",city:"Hurghada",country:"Egipto",region:"África"},
-{code:"SSH",city:"Sharm el-Sheikh",country:"Egipto",region:"África"},
-{code:"CMN",city:"Casablanca",country:"Marruecos",region:"África"},
-{code:"RAK",city:"Marrakech",country:"Marruecos",region:"África"},
-{code:"FEZ",city:"Fez",country:"Marruecos",region:"África"},
-{code:"TNG",city:"Tánger",country:"Marruecos",region:"África"},
-{code:"AGA",city:"Agadir",country:"Marruecos",region:"África"},
-{code:"ADD",city:"Adís Abeba",country:"Etiopía",region:"África"},
-{code:"LOS",city:"Lagos",country:"Nigeria",region:"África"},
-{code:"ABV",city:"Abuja",country:"Nigeria",region:"África"},
-{code:"NBO",city:"Nairobi",country:"Kenia",region:"África"},
-{code:"MBA",city:"Mombasa",country:"Kenia",region:"África"},
-{code:"DAR",city:"Dar es Salaam",country:"Tanzania",region:"África"},
-{code:"ZNZ",city:"Zanzíbar",country:"Tanzania",region:"África"},
-{code:"KGL",city:"Kigali",country:"Ruanda",region:"África"},
-{code:"ACC",city:"Acra",country:"Ghana",region:"África"},
-{code:"TUN",city:"Túnez",country:"Túnez",region:"África"},
-{code:"ALG",city:"Argel",country:"Argelia",region:"África"},
-{code:"SEN",city:"Dakar",country:"Senegal",region:"África"},
-{code:"SID",city:"Sal",country:"Cabo Verde",region:"África"},
-{code:"RAI",city:"Praia",country:"Cabo Verde",region:"África"},
-{code:"MRU",city:"Mauricio",country:"Mauricio",region:"África"},
-{code:"SEZ",city:"Seychelles",country:"Seychelles",region:"África"},
-{code:"FIH",city:"Kinshasa",country:"Rep. Dem. Congo",region:"África"},
-{code:"LAD",city:"Luanda",country:"Angola",region:"África"},
-{code:"MPM",city:"Maputo",country:"Mozambique",region:"África"},
-{code:"WDH",city:"Windhoek",country:"Namibia",region:"África"},
-{code:"GBE",city:"Gaborone",country:"Botsuana",region:"África"},
-{code:"LUN",city:"Lusaka",country:"Zambia",region:"África"},
-{code:"HRE",city:"Harare",country:"Zimbabue",region:"África"},
-{code:"MSU",city:"Maseru",country:"Lesoto",region:"África"},
-{code:"SYD",city:"Sídney",country:"Australia",region:"Oceanía"},
-{code:"MEL",city:"Melbourne",country:"Australia",region:"Oceanía"},
-{code:"BNE",city:"Brisbane",country:"Australia",region:"Oceanía"},
-{code:"PER",city:"Perth",country:"Australia",region:"Oceanía"},
-{code:"ADL",city:"Adelaide",country:"Australia",region:"Oceanía"},
-{code:"OOL",city:"Gold Coast",country:"Australia",region:"Oceanía"},
-{code:"CNS",city:"Cairns",country:"Australia",region:"Oceanía"},
-{code:"DRW",city:"Darwin",country:"Australia",region:"Oceanía"},
-{code:"AKL",city:"Auckland",country:"Nueva Zelanda",region:"Oceanía"},
-{code:"CHC",city:"Christchurch",country:"Nueva Zelanda",region:"Oceanía"},
-{code:"WLG",city:"Wellington",country:"Nueva Zelanda",region:"Oceanía"},
-{code:"ZQN",city:"Queenstown",country:"Nueva Zelanda",region:"Oceanía"},
-{code:"NAN",city:"Nadi",country:"Fiyi",region:"Oceanía"},
-{code:"RAR",city:"Rarotonga",country:"Islas Cook",region:"Oceanía"},
-{code:"APW",city:"Apia",country:"Samoa",region:"Oceanía"},
-{code:"PPT",city:"Papeete",country:"Polinesia Francesa",region:"Oceanía"},
-{code:"NOU",city:"Numea",country:"Nueva Caledonia",region:"Oceanía"},
-{code:"POM",city:"Puerto Moresby",country:"Papúa Nueva Guinea",region:"Oceanía"},
-{code:"HIR",city:"Honiara",country:"Islas Salomón",region:"Oceanía"},
-{code:"VLI",city:"Port Vila",country:"Vanuatu",region:"Oceanía"}
-];
+  const $=s=>document.querySelector(s);
+  const $$=s=>Array.from(document.querySelectorAll(s));
 
-const countryCenters = {
-  "España":[40.4,-3.7],"Reino Unido":[51.5,-0.1],"Francia":[48.9,2.3],"Italia":[41.9,12.5],
-  "Países Bajos":[52.4,4.9],"Alemania":[50.1,8.7],"Suiza":[46.8,8.2],"Austria":[48.2,16.4],
-  "Dinamarca":[55.7,12.6],"Suecia":[59.3,18.1],"Noruega":[59.9,10.8],"Finlandia":[60.2,24.9],
-  "Irlanda":[53.3,-6.3],"Portugal":[38.7,-9.1],"Grecia":[37.9,23.7],"Polonia":[52.2,21.0],
-  "Rep. Checa":[50.1,14.4],"Hungría":[47.5,19.0],"Turquía":[39.9,32.9],"Bélgica":[50.8,4.4],
-  "Luxemburgo":[49.6,6.1],"Kosovo":[42.7,21.2],"Albania":[41.3,19.8],"Bulgaria":[42.7,23.3],
-  "Rumania":[44.4,26.1],"Serbia":[44.8,20.5],"Croacia":[45.8,15.9],"Eslovenia":[46.1,14.5],
-  "Macedonia del Norte":[41.9,21.7],"Montenegro":[42.4,19.2],"Bosnia y Herzegovina":[43.9,18.4],
-  "Ucrania":[50.5,30.5],"Rusia":[55.8,37.6],"Estonia":[59.4,24.8],"Letonia":[56.9,24.1],
-  "Lituania":[54.7,25.3],"Malta":[35.9,14.5],"Islandia":[64.1,-21.9],"Gibraltar":[36.1,-5.3],
-  "Chipre":[35.2,33.4],"EAU":[24.4,54.5],"Qatar":[25.3,51.2],"Arabia Saudita":[24.7,46.7],
-  "Israel":[31.8,35.2],"Jordania":[31.9,35.9],"Líbano":[33.9,35.5],"Baréin":[26.2,50.6],
-  "Omán":[23.6,58.4],"Kuwait":[29.4,47.9],"Irak":[33.3,44.4],"Irán":[35.7,51.4],
-  "Pakistán":[33.7,73.1],"Afganistán":[34.5,69.2],"Azerbaiyán":[40.4,49.9],"Armenia":[40.2,44.5],
-  "Georgia":[41.7,44.8],"Japón":[35.7,139.7],"Corea del Sur":[37.6,127.0],"Tailandia":[13.8,100.5],
-  "Singapur":[1.35,103.8],"Malasia":[3.1,101.7],"Indonesia":[-6.2,106.8],"Filipinas":[14.6,121.0],
-  "China":[39.9,116.4],"India":[28.6,77.2],"Bangladesh":[23.8,90.4],"Nepal":[27.7,85.3],
-  "Maldivas":[4.2,73.5],"Sri Lanka":[6.9,79.9],"Vietnam":[21.0,105.8],"Camboya":[11.6,104.9],
-  "Myanmar":[19.8,96.1],"Laos":[17.9,102.6],"Mongolia":[47.9,106.9],"Kazajistán":[51.2,71.4],
-  "Uzbekistán":[41.3,69.3],"Brunéi":[4.9,114.9],"Estados Unidos":[39.8,-98.6],"Canadá":[56.1,-106.3],
-  "México":[19.4,-99.1],"Cuba":[23.1,-82.4],"Puerto Rico":[18.2,-66.6],"Panamá":[8.5,-80.1],
-  "Costa Rica":[9.9,-84.1],"Guatemala":[14.6,-90.5],"El Salvador":[13.7,-89.2],"Honduras":[14.1,-87.2],
-  "Nicaragua":[12.1,-86.2],"Jamaica":[18.1,-77.3],"Bahamas":[25.0,-77.4],"Belice":[17.2,-88.8],
-  "Brasil":[-15.8,-47.9],"Argentina":[-34.6,-58.4],"Chile":[-33.4,-70.7],"Perú":[-12.0,-77.0],
-  "Colombia":[4.7,-74.1],"Ecuador":[-0.2,-78.5],"Bolivia":[-16.5,-68.1],"Venezuela":[10.5,-66.9],
-  "Uruguay":[-34.9,-56.2],"Paraguay":[-25.3,-57.6],"Sudáfrica":[-33.9,18.4],"Egipto":[30.0,31.2],
-  "Marruecos":[31.6,-7.6],"Etiopía":[9.0,38.7],"Nigeria":[9.1,7.4],"Kenia":[-1.3,36.8],
-  "Tanzania":[-6.8,39.3],"Ruanda":[-1.9,30.1],"Ghana":[5.6,-0.2],"Túnez":[36.8,10.2],
-  "Argelia":[36.7,3.1],"Senegal":[14.7,-17.5],"Cabo Verde":[15.1,-23.6],"Mauricio":[-20.3,57.6],
-  "Seychelles":[-4.7,55.5],"Rep. Dem. Congo":[-4.4,15.3],"Angola":[-8.8,13.2],"Mozambique":[-25.9,32.6],
-  "Namibia":[-22.6,17.1],"Botsuana":[-24.6,25.9],"Zambia":[-15.4,28.3],"Zimbabue":[-17.8,31.0],
-  "Lesoto":[-29.6,28.2],"Australia":[-25.3,133.8],"Nueva Zelanda":[-40.9,174.9],"Fiyi":[-17.8,177.4],
-  "Islas Cook":[-21.2,-159.8],"Samoa":[-13.8,-172.1],"Polinesia Francesa":[-17.7,-149.4],
-  "Nueva Caledonia":[-20.9,165.6],"Papúa Nueva Guinea":[-6.3,143.2],"Islas Salomón":[-9.4,159.9],
-  "Vanuatu":[-15.4,166.9]
-};
-
-const preciseCoords = {
-  "MAD":[40.47,-3.56],"BCN":[41.29,2.07],"AGP":[36.67,-4.50],"ALC":[38.28,-0.56],"VLC":[39.49,-0.48],
-  "SVQ":[37.42,-5.90],"BIO":[43.30,-2.91],"PMI":[39.55,2.74],"LPA":[27.93,-15.39],"LHR":[51.47,-0.46],
-  "LGW":[51.15,-0.18],"STN":[51.89,0.24],"MAN":[53.35,-2.28],"EDI":[55.95,-3.37],"DUB":[53.42,-6.27],
-  "CDG":[49.01,2.55],"ORY":[48.73,2.37],"NCE":[43.66,7.22],"FCO":[41.80,12.25],"MXP":[45.63,8.72],
-  "VCE":[45.51,12.35],"AMS":[52.31,4.77],"FRA":[50.04,8.57],"MUC":[48.35,11.79],"BER":[52.37,13.50],
-  "ZRH":[47.46,8.57],"GVA":[46.24,6.11],"VIE":[48.11,16.57],"CPH":[55.62,12.66],"ARN":[59.65,17.92],
-  "OSL":[60.20,11.08],"HEL":[60.32,24.97],"LIS":[38.78,-9.14],"OPO":[41.25,-8.68],"ATH":[37.94,23.95],
-  "WAW":[52.17,20.97],"PRG":[50.10,14.27],"BUD":[47.43,19.26],"IST":[41.26,28.74],"SAW":[40.90,29.31],
-  "BRU":[50.90,4.48],"LED":[59.80,30.26],"SVO":[55.97,37.41],"TLL":[59.41,24.81],"RIX":[56.92,23.97],
-  "VNO":[54.64,25.29],"MLA":[35.86,14.48],"KEF":[64.13,-21.94],"LCA":[34.88,33.63],"DXB":[25.25,55.36],
-  "AUH":[24.43,54.65],"SHJ":[25.33,55.52],"DOH":[25.27,51.61],"JED":[21.68,39.16],"RUH":[24.96,46.70],
-  "TLV":[32.01,34.89],"AMM":[31.72,35.99],"BEY":[33.82,35.49],"BAH":[26.27,50.63],"MCT":[23.59,58.28],
-  "KWI":[29.24,47.97],"IKA":[35.42,51.15],"ISB":[33.62,73.10],"GYD":[40.47,50.05],"TBS":[41.67,44.95],
-  "NRT":[35.76,140.39],"HND":[35.55,139.78],"KIX":[34.43,135.24],"NGO":[35.26,136.87],"FUK":[33.59,130.45],
-  "CTS":[43.06,141.69],"ICN":[37.46,126.44],"PUS":[35.18,128.94],"BKK":[13.69,100.75],"DMK":[13.91,100.61],
-  "HKT":[8.11,98.32],"SIN":[1.36,103.99],"KUL":[2.75,101.71],"CGK":[-6.13,106.66],"DPS":[-8.75,115.17],
-  "MNL":[14.51,121.02],"CEB":[10.31,123.98],"HKG":[22.31,113.92],"PVG":[31.14,121.81],"PEK":[40.08,116.58],
-  "CAN":[23.39,113.30],"SZX":[22.64,113.81],"DEL":[28.57,77.10],"BOM":[19.09,72.87],"MAA":[13.00,80.18],
-  "BLR":[13.20,77.71],"HYD":[17.23,78.43],"CCU":[22.65,88.45],"AMD":[23.07,72.63],"COK":[10.15,76.39],
-  "GOI":[15.38,73.83],"PNQ":[18.58,73.92],"DAC":[23.84,90.40],"KTM":[27.70,85.36],"MLE":[4.19,73.53],
-  "CMB":[7.18,79.88],"HAN":[21.22,105.81],"SGN":[10.82,106.66],"DAD":[16.04,108.20],"PNH":[11.55,104.85],
-  "RGN":[16.91,96.13],"VTE":[17.99,102.56],"ULN":[47.84,106.77],"ALA":[43.35,77.04],"TAS":[41.26,69.28],
-  "BWN":[4.94,114.93],"JFK":[40.64,-73.78],"LGA":[40.78,-73.87],"EWR":[40.69,-74.17],"LAX":[33.94,-118.41],
-  "SFO":[37.62,-122.38],"ORD":[41.97,-87.91],"MIA":[25.80,-80.29],"DFW":[32.90,-97.04],"DEN":[39.86,-104.67],
-  "SEA":[47.45,-122.31],"BOS":[42.37,-71.02],"LAS":[36.08,-115.15],"ATL":[33.64,-84.43],"PHX":[33.43,-112.01],
-  "PHL":[39.87,-75.24],"IAD":[38.95,-77.46],"DTW":[42.21,-83.35],"MSP":[44.88,-93.22],"MCO":[28.43,-81.31],
-  "SAN":[32.73,-117.20],"PDX":[45.59,-122.60],"SLC":[40.79,-111.98],"AUS":[30.19,-97.67],"HNL":[21.32,-157.92],
-  "FLL":[26.07,-80.15],"YYZ":[43.68,-79.61],"YVR":[49.20,-123.18],"YUL":[45.47,-73.74],"YYC":[51.12,-114.01],
-  "YEG":[53.31,-113.58],"MEX":[19.44,-99.07],"CUN":[21.04,-86.87],"MID":[20.93,-89.66],"GDL":[20.52,-103.31],
-  "MTY":[25.78,-100.11],"TIJ":[32.54,-116.97],"SJD":[23.15,-109.72],"PVR":[20.68,-105.25],"HAV":[22.99,-82.41],
-  "SJU":[18.44,-66.00],"PTY":[9.07,-79.38],"SJO":[9.99,-84.21],"GUA":[14.58,-90.53],"SAL":[13.44,-89.06],
-  "TGU":[14.06,-87.22],"MGA":[12.14,-86.17],"KIN":[17.94,-76.79],"NAS":[25.04,-77.47],"BZE":[17.54,-88.31],
-  "GRU":[-23.44,-46.47],"GIG":[-22.81,-43.25],"BSB":[-15.87,-47.92],"EZE":[-34.82,-58.54],"AEP":[-34.56,-58.42],
-  "COR":[-31.32,-64.21],"MDZ":[-32.83,-68.79],"SCL":[-33.39,-70.79],"LIM":[-12.02,-77.11],"CUZ":[-13.54,-71.95],
-  "BOG":[4.70,-74.15],"MDE":[6.17,-75.43],"CTG":[10.44,-75.51],"UIO":[-0.13,-78.36],"GYE":[-2.19,-79.88],
-  "LPB":[-16.51,-68.19],"VVI":[-17.64,-63.14],"CCS":[10.60,-66.99],"MVD":[-34.84,-56.03],"ASU":[-25.24,-57.52],
-  "JNB":[-26.14,28.25],"CPT":[-33.97,18.60],"CAI":[30.12,31.41],"HRG":[27.18,33.80],"SSH":[27.98,34.38],
-  "CMN":[33.37,-7.59],"RAK":[31.61,-8.04],"ADD":[8.98,38.80],"LOS":[6.58,3.32],"ABV":[9.05,7.32],
-  "NBO":[-1.32,36.93],"DAR":[-6.88,39.20],"KGL":[-1.96,30.13],"ACC":[5.61,-0.17],"TUN":[36.85,10.23],
-  "ALG":[36.70,3.21],"SEN":[14.74,-17.49],"MRU":[-20.43,57.68],"SEZ":[-4.67,55.52],"WDH":[-22.61,17.08],
-  "SYD":[-33.94,151.18],"MEL":[-37.67,144.85],"BNE":[-27.38,153.12],"PER":[-31.94,115.97],"ADL":[-34.92,138.60],
-  "OOL":[-28.16,153.50],"CNS":[-16.89,145.75],"DRW":[-12.41,130.88],"AKL":[-37.01,174.79],"CHC":[-43.49,172.54],
-  "WLG":[-41.33,174.81],"ZQN":[-45.02,168.74],"NAN":[-17.75,177.45],"PPT":[-17.56,-149.61],"NOU":[-22.02,166.22]
-};
-
-function getAirportCoords(code){
-  if(preciseCoords[code]) return preciseCoords[code];
-  const ap = airports.find(a=>a.code===code);
-  if(!ap) return [0,0];
-  const base = countryCenters[ap.country] || [20,0];
-  let hash=0;
-  for(let i=0;i<code.length;i++) hash = code.charCodeAt(i)+((hash<<5)-hash);
-  const latOff=(Math.abs(hash)%1800)/1000;
-  const lonOff=(Math.abs(hash>>3)%2200)/1000;
-  return [base[0]+(hash%2===0?latOff:-latOff), base[1]+((hash>>1)%2===0?lonOff:-lonOff)];
-}
-
-function toRad(v){return v*Math.PI/180;}
-function haversine(a,b){
-  const R=6371, dLat=toRad(b[0]-a[0]), dLon=toRad(b[1]-a[1]);
-  const x=Math.sin(dLat/2)**2+Math.cos(toRad(a[0]))*Math.cos(toRad(b[0]))*Math.sin(dLon/2)**2;
-  return Math.round(2*R*Math.asin(Math.sqrt(x)));
-}
-
-let selected = {origin:null, dest:null};
-let activeBaggage = 'carryon';
-
-function handleAirportInput(type){
-  const input=document.getElementById(type+'Input');
-  const dd=document.getElementById(type+'Dropdown');
-  const val=input.value.trim().toUpperCase();
-  if(!val){dd.classList.remove('active');return;}
-  const m=airports.filter(a=>a.code.includes(val)||a.city.toUpperCase().includes(val)||a.country.toUpperCase().includes(val)).slice(0,10);
-  dd.innerHTML=m.map(a=>`<div class="autocomplete-item" onmousedown="event.preventDefault();pickAirport('${type}','${a.code}')"><div class="item-code">${a.code}</div><div class="item-name">${a.city}, ${a.country}</div></div>`).join('');
-  if(!m.length) dd.innerHTML='<div class="autocomplete-item no-results">Sin resultados</div>';
-  dd.classList.add('active');
-}
-function showDropdown(type){handleAirportInput(type);}
-function hideDropdownDelayed(type){setTimeout(()=>document.getElementById(type+'Dropdown').classList.remove('active'),180);}
-
-function pickAirport(type,code){
-  const ap=airports.find(a=>a.code===code);
-  if(!ap) return;
-  selected[type]=ap;
-  document.getElementById(type+'Input').value=ap.city;
-  document.getElementById(type+'CodeDisplay').innerHTML=`${ap.code} · ${ap.city}, ${ap.country}`;
-  document.getElementById(type+'Code').textContent=ap.code;
-  document.getElementById(type+'Name').textContent=`${ap.city}, ${ap.country}`;
-  document.getElementById(type+'Dropdown').classList.remove('active');
-  updateRouteDistance();
-}
-
-function updateRouteDistance(){
-  if(selected.origin && selected.dest){
-    const d=haversine(getAirportCoords(selected.origin.code), getAirportCoords(selected.dest.code));
-    document.getElementById('routeDistance').textContent=d.toLocaleString('es-ES')+' km';
-  }
-}
-
-function selectBaggage(el){
-  document.querySelectorAll('.baggage-option').forEach(b=>b.classList.remove('selected'));
-  el.classList.add('selected');
-  activeBaggage=el.dataset.value;
-}
-
-const hubCities = ["Dubái","Estambul","Londres","Singapur","Ámsterdam","Fráncfort","Doha","París","Madrid","Barcelona","Nueva York","Los Ángeles","Bangkok","Kuala Lumpur","Delhi","Oslo","Roma","Zúrich","Viena","Múnich","Budapest","Vancouver","Ciudad de México","São Paulo","El Cairo","Johannesburgo","Sídney","Auckland"];
-
-function rngSeed(str){
-  let h=1779033703;
-  for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19;}
-  return function(){
-    h=Math.imul(h^(h>>>16),2246822507);
-    h=Math.imul(h^(h>>>13),3266489909);
-    return (h>>>0)/4294967296;
+  const countryCenters={
+    "ES":[40.4,-3.7],"FR":[48.85,2.35],"DE":[52.5,13.4],"IT":[41.9,12.5],"NL":[52.3,4.9],"PT":[38.7,-9.1],"BE":[50.85,4.35],"CH":[47.37,8.54],"AT":[48.2,16.37],"GR":[37.98,23.73],"TR":[41.0,28.96],"AE":[25.2,55.27],"SA":[24.7,46.68],"QA":[25.28,51.53],"JP":[35.68,139.69],"KR":[37.56,126.97],"CN":[39.9,116.4],"SG":[1.35,103.8],"TH":[13.75,100.5],"MY":[3.13,101.68],"ID":[-6.2,106.8],"PH":[14.59,120.98],"VN":[21.02,105.83],"IN":[28.6,77.2],"PK":[33.68,73.05],"BD":[23.81,90.41],"LK":[6.92,79.86],"AU":[-33.87,151.2],"NZ":[-36.85,174.76],"US":[40.7,-74.0],"CA":[43.65,-79.38],"MX":[19.43,-99.13],"BR":[-23.55,-46.63],"AR":[-34.6,-58.38],"CL":[-33.45,-70.66],"CO":[4.71,-74.07],"PE":[-12.05,-77.04],"EC":[-0.18,-78.47],"UY":[-34.9,-56.16],"ZA":[-33.92,18.42],"EG":[30.04,31.23],"MA":[34.02,-6.84],"KE":[-1.29,36.82],"NG":[6.52,3.37],"GH":[5.6,-0.18],"ET":[9.0,38.75],"TZ":[-6.79,39.21],"RU":[55.75,37.62],"GB":[51.5,-0.12],"IE":[53.35,-6.26],"NO":[59.91,10.75],"SE":[59.33,18.06],"DK":[55.68,12.57],"FI":[60.17,24.94],"PL":[52.23,21.01],"CZ":[50.07,14.43],"HU":[47.5,19.04],"RO":[44.43,26.1],"BG":[42.7,23.32],"HR":[45.8,16.0],"RS":[44.78,20.44],"UA":[50.45,30.52],"IL":[32.08,34.78],"JO":[31.95,35.93],"LB":[33.89,35.5],"KW":[29.37,47.97],"OM":[23.58,58.38],"BH":[26.22,50.58],"KW":[29.37,47.97],"KW":[29.37,47.97]
   };
-}
 
-function generateData(){
-  const o=selected.origin, d=selected.dest;
-  const dist=haversine(getAirportCoords(o.code), getAirportCoords(d.code));
-  const pax=+document.getElementById('passengers').value;
-  const cabin=document.getElementById('cabinClass').value;
-  const rng=rngSeed(o.code+d.code+cabin+document.getElementById('departDate').value);
-  const cabinMult={economy:0.07, premium:0.16, business:0.42, first:1.1}[cabin];
-  const bagMult={carryon:1, checked:1.10, checked2:1.20}[activeBaggage];
-  const base=Math.max(45, dist*cabinMult*(0.85+rng()*0.25)*bagMult);
+  const preciseCoords={
+    "MAD":[40.47,-3.56],"BCN":[41.3,2.08],"CDG":[49.01,2.55],"ORY":[48.72,2.38],"FRA":[50.04,8.57],"MUC":[48.35,11.78],"FCO":[41.8,12.24],"MXP":[45.63,8.72],"AMS":[52.31,4.77],"LIS":[38.78,-9.13],"BRU":[50.9,4.48],"ZRH":[47.46,8.55],"VIE":[48.11,16.57],"ATH":[37.94,23.94],"IST":[41.26,28.74],"SAW":[40.9,29.31],"DXB":[25.25,55.36],"AUH":[24.43,54.65],"DOH":[25.27,51.6],"JED":[21.68,39.15],"RUH":[24.96,46.7],"NRT":[35.76,140.39],"HND":[35.55,139.78],"ICN":[37.46,126.45],"PEK":[40.08,116.58],"PKX":[39.5,116.39],"PVG":[31.14,121.8],"CAN":[23.39,113.3],"SIN":[1.36,103.99],"BKK":[13.69,100.75],"KUL":[2.75,101.71],"CGK":[-6.13,106.66],"MNL":[14.51,121.02],"HAN":[21.22,105.81],"SGN":[10.82,106.63],"DEL":[28.57,77.1],"BOM":[19.09,72.87],"ISB":[33.62,73.1],"DAC":[23.84,90.4],"CMB":[7.18,79.88],"SYD":[-33.94,151.18],"MEL":[-37.67,144.85],"AKL":[-37.0,174.8],"JFK":[40.64,-73.78],"LAX":[33.94,-118.41],"ORD":[41.97,-87.91],"MIA":[25.8,-80.28],"YYZ":[43.68,-79.63],"YVR":[49.2,-123.18],"MEX":[19.44,-99.07],"GRU":[-23.43,-46.47],"EZE":[-34.82,-58.54],"SCL":[-33.39,-70.79],"BOG":[4.7,-74.15],"LIM":[-12.02,-77.11],"UIO":[-0.13,-78.49],"MVD":[-34.84,-56.03],"CPT":[-33.97,18.6],"JNB":[-26.13,28.23],"CAI":[30.12,31.41],"CMN":[33.37,-7.59],"NBO":[-1.32,36.93],"LOS":[6.58,3.32],"ACC":[5.61,-0.17],"ADD":[8.98,38.8],"DAR":[-6.88,39.2],"SVO":[55.97,37.41],"LED":[59.8,30.27],"LHR":[51.47,-0.46],"LGW":[51.15,-0.19],"MAN":[53.35,-2.28],"DUB":[53.42,-6.27],"OSL":[60.19,11.1],"ARN":[59.65,17.93],"CPH":[55.62,12.66],"HEL":[60.32,24.97],"WAW":[52.17,20.97],"PRG":[50.1,14.26],"BUD":[47.43,19.26],"OTP":[44.57,26.08],"SOF":[42.7,23.4],"ZAG":[45.74,16.07],"BEG":[44.82,20.29],"KBP":[50.34,30.89],"TLV":[32.01,34.89],"AMM":[31.72,35.99],"BEY":[33.82,35.49],"KWI":[29.24,47.97],"MCT":[23.59,58.28],"BAH":[26.27,50.63]
+  };
 
-  const tradNames=["Iberia","Lufthansa","Air France","British Airways","KLM","United","Emirates","Qatar Airways","Turkish Airlines","Delta","American Airlines","Singapore Airlines","Cathay Pacific","ANA","JAL","Air Canada","Swiss","Austrian","ITA Airways","Finnair","SAS","Air Europa","LATAM","Qantas","TAP","Brussels Airlines"];
-  const trad=[];
-  const tCount=2+Math.floor(rng()*3);
-  for(let i=0;i<tCount;i++){
-    const name=tradNames[Math.floor(rng()*tradNames.length)];
-    const stops=dist<1200?0:(dist<3500?(rng()>0.35?0:1):(dist<6000?1:1+Math.floor(rng()*2)));
-    const dur=Math.round(dist/(stops?820:880) + stops*(1.2+rng()*2.2));
-    const price=Math.round(base*(1+stops*0.12+rng()*0.35)*pax);
-    trad.push({type:'traditional',name,price,stops,dur,dist,icon:'🛫'});
+  const byCode={};
+  Object.entries(preciseCoords).forEach(([k,v])=>byCode[k]=v);
+
+  function haversine(a,b){
+    const R=6371;
+    const toRad=x=>x*Math.PI/180;
+    const dLat=toRad(b[0]-a[0]);
+    const dLon=toRad(b[1]-a[1]);
+    const aa=Math.sin(dLat/2)**2+Math.cos(toRad(a[0]))*Math.cos(toRad(b[0]))*Math.sin(dLon/2)**2;
+    const c=2*Math.atan2(Math.sqrt(aa),Math.sqrt(1-aa));
+    return R*c;
   }
-  trad.sort((a,b)=>a.price-b.price);
 
-  const auraStrats=[
-    {name:"Wizz Air ⇢ Scoot",strat:"Low-cost hub Budapest / Bangkok"},
-    {name:"Ryanair ⇢ AirAsia X",strat:"Low-cost hub Londres / Kuala Lumpur"},
-    {name:"Vueling ⇢ Norse",strat:"Low-cost hub Barcelona / Oslo / NY"},
-    {name:"Pegasus ⇢ IndiGo",strat:"Low-cost hub Estambul / Delhi"},
-    {name:"easyJet ⇢ Jetstar",strat:"Low-cost hub Berlín / Singapur"},
-    {name:"AirArabia ⇢ Flydubai",strat:"Low-cost hub Sharjah / Dubái"},
-    {name:"Flynas ⇢ Air Cairo",strat:"Low-cost hub Riad / El Cairo"},
-    {name:"JetSmart ⇢ SKY",strat:"Low-cost hub Sudamérica"},
-    {name:"Scoot ⇢ Nok Air",strat:"Low-cost hub Sudeste Asiático"},
-    {name:"Eurowings Discover ⇢ AirAsia X",strat:"Leisure + LCC combo"}
-  ];
-  const aura=[];
-  const aCount
+  function distanceKm(c1,c2){
+    let a=byCode[c1], b=byCode[c2];
+    if(a&&b)return haversine(a,b);
+    a=countryCenters[c1]; b=countryCenters[c2];
+    if(a&&b)return haversine(a,b);
+    return 5000;
+  }
+
+  function fmtMoney(n,cur){
+    return new Intl.NumberFormat('en-US',{style:'currency',currency:cur||'USD',maximumFractionDigits:0}).format(n);
+  }
+
+  function rngSeed(str){
+    let h=0;
+    for(let i=0;i<str.length;i++)h=(h<<5)-h+str.charCodeAt(i),h|=0;
+    const s=()=>{
+      h^=h<<13;h^=h>>>17;h^=h<<5;
+      const v=((h<0?~h+1:h)%100000)/100000;
+      return v;
+    };
+    return s;
+  }
+
+  let originSel=null, destSel=null, baggage='carry-on';
+
+  function buildSuggestions(input, container, onPick){
+    container.innerHTML='';
+    const v=input.value.trim().toUpperCase();
+    if(!v)return;
+    const matches=Object.entries(preciseCoords).filter(([k])=>k.includes(v)).slice(0,6);
+    if(!matches.length)return;
+    const wrap=document.createElement('div');
+    wrap.style.cssText='display:flex;flex-wrap:wrap;gap:8px';
+    matches.forEach(([code,coords])=>{
+      const el=document.createElement('div');
+      el.className='chip';
+      el.textContent=code;
+      el.onclick=()=>{input.value=code;container.innerHTML='';onPick(code);};
+      wrap.appendChild(el);
+    });
+    container.appendChild(wrap);
+  }
+
+  $('#originInput').addEventListener('input',e=>buildSuggestions(e.target,$('#originSuggestions'),c=>originSel=c));
+  $('#destInput').addEventListener('input',e=>buildSuggestions(e.target,$('#destSuggestions'),c=>destSel=c));
+
+  $$('#baggageOptions .chip').forEach(el=>{
+    el.addEventListener('click',()=>{
+      $$('#baggageOptions .chip').forEach(x=>x.classList.remove('active'));
+      el.classList.add('active');
+      baggage=el.dataset.bag;
+    });
+  });
+
+  function generateData(){
+    const dep=$('#depDate').value, ret=$('#retDate').value, pax=parseInt($('#pax').value||'1',10), cur=$('#currency').value;
+    const today=new Date().toISOString().slice(0,10);
+    const daysDiff=dep?Math.max(0,Math.floor((new Date(dep)-new Date(today))/86400000)):14;
+    const dist=Math.round(distanceKm(originSel,destSel));
+
+    const seedStr=`${originSel}-${destSel}-${dep||today}-${ret||'none'}-${pax}-${baggage}`;
+    const rand=rngSeed(seedStr);
+
+    const baseFareUSD=()=>{
+      const base=dist*0.10;
+      const advance=Math.max(0.85,1-daysDiff*0.008);
+      const season=1+Math.sin((new Date(dep||today).getMonth()/11)*Math.PI)*0.18;
+      const bagMult={ 'carry-on':1,'checked':1.25,'both':1.45 }[baggage];
+      const paxMult=1+(pax-1)*0.95;
+      return Math.max(180,Math.round(base*advance*season*bagMult*paxMult));
+    };
+
+    const auraDiscount=()=>{
+      if(daysDiff>=45)return 0.74;
+      if(daysDiff>=21)return 0.81;
+      if(daysDiff>=7)return 0.88;
+      return 0.94;
+    };
+
+    const tradPrice=Math.round(baseFareUSD()*1.18);
+    const auraPrice=Math.round(baseFareUSD()*auraDiscount()*1.08);
+
+    const stops=()=>{
+      if(dist<1500)return 'Directo';
+      if(dist<3500)return '1 escala';
+      if(dist<6500)return '1-2 escalas';
+      return '2 escalas';
+    };
+
+    const duration=()=>{
+      const speed=780;
+      const base=dist/speed;
+      const extra=dist<1500?0.5:dist<3500?1.5:dist<6500?3:5;
+      const total=base+extra;
+      const h=Math.floor(total), m=Math.round((total-h)*60);
+      return `${h}h ${m}m`;
+    };
+
+    const airlines=['Iberia','Air France-KLM','Lufthansa Group','Qatar Airways','Emirates','Turkish Airlines','United','Delta','American Airlines','LATAM','Avianca','Singapore Airlines','Cathay Pacific','ANA','Japan Airlines','Qantas','Etihad','British Airways','Air Europa','Level','Vueling','easyJet','Ryanair','Wizz Air','JetSMART','Sky Airline','Arajet','Norse','French Bee','ZIPAIR'];
+    const tradAirline=airlines[Math.floor(rand()*airlines.length)];
+    const auraAirline=airlines[Math.floor(rand()*airlines.length)];
+
+    const riskScore=()=>{
+      let s=0;
+      if(daysDiff<7)s+=35;
+      else if(daysDiff<14)s+=18;
+      if(dist>9000)s+=15;
+      if(baggage!=='carry-on')s+=10;
+      if(['GRU','EZE','BOG','LIM','SCL','MVD','JNB','LOS','NBO','ADD','DAR','CPT','SYD','MEL','AKL','PEK','PKX','CAN','PVG','DEL','BOM','ISB','DAC','CMB'].includes(destSel))s+=12;
+      return Math.min(98,Math.round(s+rand()*12));
+    };
+
+    const r=riskScore();
+    let verdict='validated';
+    if(r>=65)verdict='conditional';
+    if(r>=85)verdict='rejected';
+
+    const strategies=[
+      'Compra directa con la aerolínea (mejor servicio al cliente)',
+      'Reserva con agencia OTAT para comparar protección',
+      'Tarifa flexible si viajes de negocios o impredecibles',
+      'Segmentar ida y vuelta por separado para mayor control',
+      'Considerar escala estratégica (precio + comfort)'
+    ];
+    const strategy=strategies[Math.floor(rand()*strategies.length)];
+
+    const weatherNote=()=>{
+      const month=new Date(dep||today).getMonth()+1;
+      const northSummer=month>=5&&month<=9;
+      const southSummer=month>=11||month<=3;
+      const destLat=byCode[destSel]?byCode[destSel][0]:(countryCenters[destSel]?countryCenters[destSel][0]:0);
+      if(destLat>20&&northSummer)return 'Temporada alta verano. Reserva con anticipación.';
+      if(destLat<-20&&southSummer)return 'Temporada alta verano. Reserva con anticipación.';
+      if((destLat>20&&!northSummer)||(destLat<-20&&!southSummer))return 'Temporada baja. Precios potencialmente más bajos.';
+      return 'Temporada intermedia. Buen balance precio/disponibilidad.';
+    };
+
+    const visaNote=()=>{
+      const latam=['BOG','LIM','UIO','MVD','SCL','EZE','GRU'];
+      const eu=['MAD','BCN','CDG','FRA','MUC','FCO','AMS','LIS','BRU','ZRH','VIE','ATH','IST'];
+      const sea=['BKK','SIN','KUL','CGK','MNL','HAN','SGN'];
+      if(latam.includes(destSel))return 'Ciudadano latinoamericano: verificar visa según nacionalidad.';
+      if(eu.includes(destSel))return 'UE/EEA no requiere visa corta. Otros: verificar requisitos Schengen.';
+      if(sea.includes(destSel))return 'Visa a la llegada o e-visa disponible para varios países.';
+      return 'Verificar requisitos de visa/ETA según pasaporte.';
+    };
+
+    return {
+      dist,tradPrice,auraPrice,stops:stops(),duration:duration(),
+      tradAirline,auraAirline,originSel,destSel,dep,ret,pax,cur,baggage,
+      risk:r,verdict,strategy,weather:weatherNote(),visa:visaNote(),
+      daysDiff
+    };
+  }
+
+  function renderSegments(origin,dest){
+    const o=origin||'???', d=dest||'???';
+    const direct=distanceKm(o,d)<1500;
+    if(direct){
+      return `<div class="segment"><div class="airports">${o} → ${d}</div><div class="meta">Directo · Recomendado para ahorro de tiempo</div></div>`;
+    }
+    const hub1=distanceKm(o,'IST')<distanceKm(o,'DOH')?'IST':'DOH';
+    return `
+    <div class="segment"><div class="airports">${o} → ${hub1}</div><div class="meta">Escala estratégica · Conexiones ágiles</div></div>
+    <div class="segment"><div class="airports">${hub1} → ${d}</div><div class="meta">Llegada a destino final</div></div>`;
+  }
+
+  function renderAll(data){
+    const r=$('#results');
+    const savings=data.tradPrice-data.auraPrice;
+    const verdictLabels={validated:'Validado',conditional:'Condicional',rejected:'Rechazado'};
+    const verdictClasses={validated:'chip-validated',conditional:'chip-conditional',rejected:'chip-rejected'};
+
+    r.innerHTML=`
+    <div class="flight-card">
+      <div class="flight-header">
+        <div>
+          <div class="flight-title">${data.originSel} → ${data.destSel}</div>
+          <div class="muted" style="font-size:12px">${data.dist.toLocaleString()} km · ${data.pax} pasajero(s) · ${data.baggage.replace('-',' ')}</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="badge">Salida: ${data.dep||'No definida'}</div>
+          <div class="badge ${data.verdict==='validated'?'ok':data.verdict==='conditional'?'warn':'bad'}">${verdictLabels[data.verdict]}</div>
+        </div>
+      </div>
+      <div class="segments">${renderSegments(data.originSel,data.destSel)}</div>
+    </div>
+
+    <div class="flight-card">
+      <div class="flight-header"><div class="flight-title">Comparativa de precios</div></div>
+      <table>
+        <thead><tr><th>Concepto</th><th>Tradicional</th><th>Aura Engine</th></tr></thead>
+        <tbody>
+          <tr><td>Precio total</td><td>${fmtMoney(data.tradPrice,data.cur)}</td><td><strong>${fmtMoney(data.auraPrice,data.cur)}</strong></td></tr>
+          <tr><td>Aerolínea ejemplo</td><td>${data.tradAirline}</td><td>${data.auraAirline}</td></tr>
+          <tr><td>Escalas</td><td>${data.stops}</td><td>${data.stops}</td></tr>
+          <tr><td>Duración estimada</td><td>${data.duration}</td><td>${data.duration}</td></tr>
+          <tr><td>Anticipación</td><td>${data.daysDiff} días</td><td>${data.daysDiff} días</td></tr>
+          <tr><td>Ahorro estimado</td><td>—</td><td style="color:var(--good)"><strong>${fmtMoney(Math.max(0,savings),data.cur)}</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flight-card">
+      <div class="flight-header"><div class="flight-title">Análisis de riesgo</div></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:8px">
+        <div class="segment"><div class="meta">Score de riesgo</div><div style="font-size:22px;font-weight:800;color:${data.risk>=85?'var(--accent4)':data.risk>=65?'var(--warn)':'var(--good)'}">${data.risk}/100</div></div>
+        <div class="segment"><div class="meta">Veredicto</div><div style="font-weight:800">${verdictLabels[data.verdict]}</div></div>
+        <div class="segment"><div class="meta">Estrategia recomendada</div><div style="font-weight:700">${data.strategy}</div></div>
+        <div class="segment"><div class="meta">Clima / Temporada</div><div style="font-size:12px">${data.weather}</div></div>
+        <div class="segment"><div class="meta">Visas / Requisitos</div><div style="font-size:12px">${data.visa}</div></div>
+      </div>
+    </div>
+
+    <div class="flight-card">
+      <div class="flight-header"><div class="flight-title">Links de consulta directa</div></div>
+      <div class="links">
+        <a href="https://www.google.com/travel/flights?q=Flights%20to%20${data.destSel}%20from%20${data.originSel}" target="_blank" rel="noopener noreferrer">Google Flights (ruta)</a>
+        <a href="https://www.skyscanner.com/transport/flights/${data.originSel.toLowerCase()}/${data.destSel.toLowerCase()}/?adults=${data.pax}" target="_blank" rel="noopener noreferrer">Skyscanner (ruta)</a>
+        <a href="https://www.momondo.com/flight-search/${data.originSel}-${data.destSel}" target="_blank" rel="noopener noreferrer">Momondo (ruta)</a>
+        <a href="https://www.google.com/search?q=official+airline+website+flights+${data.destSel}" target="_blank" rel="noopener noreferrer">Airlines (Directo)</a>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="primary" id="openVerdict">Ver veredicto detallado</button>
+      <button class="ghost" id="copyBtn">Copiar resumen</button>
+    </div>
+    `;
+
+    $('#openVerdict').onclick=()=>{
+      const vb=$('#verdictBody');
+      vb.innerHTML=`
+      <div class="verdict-row"><span>Score:</span><span class="verdict-chip ${verdictClasses[data.verdict]}">${data.risk}/100 · ${verdictLabels[data.verdict]}</span></div>
+      <div class="verdict-row"><span>Origen:</span><strong>${data.originSel}</strong></div>
+      <div class="verdict-row"><span>Destino:</span><strong>${data.destSel}</strong></div>
+      <div class="verdict-row"><span>Distancia:</span><strong>${data.dist.toLocaleString()} km</strong></div>
+      <div class="verdict-row"><span>Pasajeros:</span><strong>${data.pax}</strong></div>
+      <div class="verdict-row"><span>Equipaje:</span><strong>${data.baggage}</strong></div>
+      <div class="verdict-row"><span>Salida:</span><strong>${data.dep||'—'}</strong></div>
+      <div class="verdict-row"><span>Regreso:</span><strong>${data.ret||'—'}</strong></div>
+      <div class="verdict-row"><span>Precio tradicional:</span><strong>${fmtMoney(data.tradPrice,data.cur)}</strong></div>
+      <div class="verdict-row"><span>Precio Aura:</span><strong>${fmtMoney(data.auraPrice,data.cur)}</strong></div>
+      <div class="verdict-row"><span>Ahorro:</span><strong style="color:var(--good)">${fmtMoney(Math.max(0,data.tradPrice-data.auraPrice),data.cur)}</strong></div>
+      <div style="margin-top:10px;color:var(--muted);font-size:13px;line-height:1.6">
+        <strong>Estrategia:</strong> ${data.strategy}<br>
+        <strong>Clima/Temporada:</strong> ${data.weather}<br>
+        <strong>Visas:</strong> ${data.visa}
+      </div>
+      `;
+      $('#verdictModal').classList.add('open');
+    };
+
+    $('#copyBtn').onclick=()=>{
+      const text=`Aura Engine 2.0 - Resumen\n${data.originSel} → ${data.destSel}\nDistancia: ${data.dist.toLocaleString()} km\nPasajeros: ${data.pax}\nSalida: ${data.dep||'—'}\nRegreso: ${data.ret||'—'}\nPrecio tradicional: ${fmtMoney(data.tradPrice,data.cur)}\nPrecio Aura: ${fmtMoney(data.auraPrice,data.cur)}\nAhorro: ${fmtMoney(Math.max(0,data.tradPrice-data.auraPrice),data.cur)}\nVeredicto: ${verdictLabels[data.verdict]} (${data.risk}/100)`;
+      navigator.clipboard.writeText(text).then(()=>showToast('Resumen copiado al portapapeles')).catch(()=>showToast('No se pudo copiar'));
+    };
+  }
+
+  function runAnalysis(){
+    const dep=$('#depDate').value;
+    if(!originSel||!destSel){showToast('Selecciona origen y destino');return}
+    if(!dep){showToast('Selecciona una fecha de salida');return}
+    if(originSel===destSel){showToast('Origen y destino deben ser diferentes');return}
+
+    $('#loading').classList.add('open');
+    $('#statusText').textContent='Consultando disponibilidad...';
+    $('#results').innerHTML='<div class="muted">Analizando rutas y precios...</div>';
+
+    setTimeout(()=>{
+      $('#statusText').textContent='Calculando distancias y tarifas...';
+      setTimeout(()=>{
+        $('#statusText').textContent='Generando recomendación...';
+        setTimeout(()=>{
+          $('#loading').classList.remove('open');
+          const data=generateData();
+          renderAll(data);
+          showToast('Análisis completado');
+        },350);
+      },350);
+    },350);
+  }
+
+  function showToast(msg){
+    const t=$('#toast');
+    t.textContent=msg;
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),2200);
+  }
+
+  $('#analyzeBtn').onclick=runAnalysis;
+  $('#resetBtn').onclick=()=>{
+    $('#originInput').value='';$('#destInput').value='';$('#depDate').value='';$('#retDate').value='';$('#pax').value='1';
+    originSel=null;destSel=null;
+    $('#results').innerHTML='<div class="muted">Completa origen y destino, luego presiona "Analizar vuelos".</div>';
+    showToast('Formulario limpiado');
+  };
+  $('#closeVerdict').onclick=()=>$('#verdictModal').classList.remove('open');
+
+  // defaults
+  const today=new Date();
+  const future=new Date(today.getTime()+20*86400000);
+  $('#depDate').value=future.toISOString().slice(0,10);
+  const ret=new Date(today.getTime()+34*86400000);
+  $('#retDate').value=ret.toISOString().slice(0,10);
+  $('#originInput').value='MAD';originSel='MAD';
+  $('#destInput').value='NRT';destSel='NRT';
+})();
+</script>
+</body>
+</html>
