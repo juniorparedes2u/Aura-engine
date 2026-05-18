@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JetSaaS - Sovereign Flight Engine (v3.0 Metasearch Comparison Matrix)</title>
+  <title>JetSaaS - Sovereign Flight Engine (v3.1 Zero-Friction Direct Checkout)</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -438,25 +438,62 @@
         return null;
       };
 
+      // GENERADOR DE DEEP-LINKS PRECARGADOS DIRECTOS A CADA AEROLÍNEA (v3.1 Zero-Friction Checkout)
       const generateDeepLink = (from, to, deptDate, retDate, carrierCode, roundTrip, numPax) => {
+        const fromIATA = from.toUpperCase().trim();
+        const toIATA = to.toUpperCase().trim();
         const formattedDept = deptDate.replace(/-/g, '');
         const formattedRet = retDate ? retDate.replace(/-/g, '') : '';
-        const carrierClean = carrierCode.toUpperCase();
-        const tripTypeString = roundTrip ? "RoundTrip" : "OneWay";
+        const carrier = carrierCode.toUpperCase().trim();
 
-        if (carrierClean.includes('AM') || carrierClean.includes('AEROMÉXICO')) {
-          return `https://www.aeromexico.com/es-mx/reserva/vuelos?from=${from}&to=${to}&departDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&adults=${numPax}`;
-        } else if (carrierClean.includes('IB') || carrierClean.includes('IBERIA')) {
-          return `https://www.iberia.com/es/comprar-vuelos/?market=ES&origin=${from}&destination=${to}&date=${formattedDept}${roundTrip ? `&returnDate=${formattedRet}` : ''}&adults=${numPax}`;
-        } else if (carrierClean.includes('LH') || carrierClean.includes('LUFTHANSA')) {
-          return `https://www.lufthansa.com/es/es/flights/${from}-${to}?departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&passengers=${numPax}`;
-        } else if (carrierClean.includes('AF') || carrierClean.includes('AIR FRANCE')) {
-          return `https://wwws.airfrance.es/search/offers?bookingFlow=REVENUE&cabinClass=ECONOMY&destination=${to}&origin=${from}&pc=${numPax}&travelDate=${deptDate}`;
+        // 1. Aeroméxico (AM)
+        if (carrier.includes('AM') || carrier.includes('AEROMÉXICO') || carrier.includes('AEROMEXICO')) {
+          return `https://www.aeromexico.com/es-mx/reserva/vuelos?from=${fromIATA}&to=${toIATA}&departDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&adults=${numPax}&cabin=economy`;
         }
-        
-        const paxParam = numPax > 1 ? `${numPax}%20passengers` : '1%20passenger';
-        const datesQuery = roundTrip ? `from%20${deptDate}%20to%20${retDate}` : `on%20${deptDate}`;
-        return `https://www.google.com/travel/flights?q=Flights%20from%20${from}%20to%20${to}%20${datesQuery}%20${paxParam}%20${tripTypeString}`;
+        // 2. Iberia (IB)
+        if (carrier.includes('IB') || carrier.includes('IBERIA')) {
+          return `https://www.iberia.com/es/comprar-vuelos/?market=ES&origin=${fromIATA}&destination=${toIATA}&date=${formattedDept}${roundTrip ? `&returnDate=${formattedRet}` : ''}&adults=${numPax}`;
+        }
+        // 3. Lufthansa (LH)
+        if (carrier.includes('LH') || carrier.includes('LUFTHANSA')) {
+          return `https://www.lufthansa.com/es/es/search/flights?origin=${fromIATA}&destination=${toIATA}&departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&passengers=${numPax}&cabinClass=ECONOMY`;
+        }
+        // 4. Air France (AF)
+        if (carrier.includes('AF') || carrier.includes('AIR FRANCE') || carrier.includes('AIRFRANCE')) {
+          return `https://wwws.airfrance.es/search/offers?bookingFlow=REVENUE&cabinClass=ECONOMY&origin=${fromIATA}&destination=${toIATA}&pc=${numPax}&travelDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}`;
+        }
+        // 5. United Airlines (UA)
+        if (carrier.includes('UA') || carrier.includes('UNITED')) {
+          return `https://www.united.com/en/us/fsr/choose-flights?f=${fromIATA}&t=${toIATA}&d=${deptDate}${roundTrip ? `&r=${retDate}` : ''}&px=${numPax}&c=Y`;
+        }
+        // 6. American Airlines (AA)
+        if (carrier.includes('AA') || carrier.includes('AMERICAN')) {
+          return `https://www.aa.com/booking/find-flights?originAirport=${fromIATA}&destinationAirport=${toIATA}&departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&adultPassengers=${numPax}&cabin=COACH`;
+        }
+        // 7. Delta Air Lines (DL)
+        if (carrier.includes('DL') || carrier.includes('DELTA')) {
+          return `https://www.delta.com/flight-search/search?origin=${fromIATA}&destination=${toIATA}&departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&passengers=${numPax}&cabin=MAIN`;
+        }
+        // 8. LATAM Airlines (LA)
+        if (carrier.includes('LA') || carrier.includes('LATAM')) {
+          return `https://www.latamairlines.com/es_mx/reserva-vuelos?origin=${fromIATA}&destination=${toIATA}&departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&adults=${numPax}`;
+        }
+        // 9. Avianca (AV)
+        if (carrier.includes('AV') || carrier.includes('AVIANCA')) {
+          return `https://www.avianca.com/es/booking/?origin=${fromIATA}&destination=${toIATA}&departure=${deptDate}${roundTrip ? `&return=${retDate}` : ''}&adults=${numPax}`;
+        }
+        // 10. Volaris (Y4)
+        if (carrier.includes('Y4') || carrier.includes('VOLARIS')) {
+          return `https://www.volaris.com/flight-search?origin=${fromIATA}&destination=${toIATA}&departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&adults=${numPax}`;
+        }
+        // 11. VivaAerobus (VB)
+        if (carrier.includes('VB') || carrier.includes('VIVAAEROBUS') || carrier.includes('VIVA AEROBUS')) {
+          return `https://www.vivaaerobus.com/es-mx/booking?origin=${fromIATA}&destination=${toIATA}&departure=${deptDate}${roundTrip ? `&return=${retDate}` : ''}&adults=${numPax}`;
+        }
+
+        // Failover dinámico si el nombre no coincide: Portal de la Aerolínea genérico sanitizado para pre-carga
+        const cleanDomain = carrier.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return `https://www.${cleanDomain}.com/search?origin=${fromIATA}&destination=${toIATA}&departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&passengers=${numPax}`;
       };
 
       // Simular progresión táctica en la UI
@@ -468,7 +505,7 @@
           { p: 30, t: "Verificando firmas criptográficas en canal seguro RLS..." },
           { p: 55, t: `Consultando bases de datos de tarifas directas para ${origin.code} ➔ ${destination.code}...` },
           { p: 75, t: `Evaluando algoritmo FlexBudget con margen del 50% para presupuesto ideal de $${budget} USD...` },
-          { p: 90, t: "Generando matriz de comparación versus Google Flights y OTAs del mercado..." }
+          { p: 90, t: "Generando matriz de comparación versus Google Flights y deep links directos..." }
         ];
 
         phases.forEach((phase, idx) => {
@@ -736,6 +773,20 @@
           
           const systemPrompt = "Act strictly as a real-time flight ticketing data structure parser. Return raw JSON arrays only.";
           const prompt = `Find active commercial flights serving route ${cleanOrigin} to ${cleanDestination}. 
+
+          Available Carrier Whitelist (MUST choose ONLY from these airlines to guarantee direct-to-airline deep linking):
+          - 'Aeroméxico' (AM)
+          - 'Iberia' (IB)
+          - 'Lufthansa' (LH)
+          - 'Air France' (AF)
+          - 'United Airlines' (UA)
+          - 'American Airlines' (AA)
+          - 'Delta' (DL)
+          - 'LATAM' (LA)
+          - 'Avianca' (AV)
+          - 'Volaris' (Y4)
+          - 'VivaAerobus' (VB)
+
           Details:
           - Outbound: ${departureDate}
           ${isRoundTrip ? `- Return: ${returnDate}` : '- One Way'}
@@ -746,8 +797,8 @@
           Return EXACTLY this JSON structure, completely pure without markdown blocks:
           [
             {
-              "airline": "Airline Name",
-              "flightNumber": "Outbound Flight Code",
+              "airline": "Airline Name from Whitelist",
+              "flightNumber": "Outbound Flight Code (e.g., AM2420, IB6400, LH120)",
               "returnFlightNumber": "Return Flight Code or null",
               "price": 650, 
               "durationOutbound": "11h 20m",
@@ -764,7 +815,7 @@
             if (Array.isArray(parsedFlights) && parsedFlights.length > 0) {
               const structuredFlights = parsedFlights.map(f => ({
                 ...f,
-                bookingLink: f.bookingLink && f.bookingLink.startsWith('http') ? f.bookingLink : generateDeepLink(cleanOrigin, cleanDestination, departureDate, isRoundTrip ? returnDate : '', f.airline, isRoundTrip, passengers)
+                bookingLink: generateDeepLink(cleanOrigin, cleanDestination, departureDate, isRoundTrip ? returnDate : '', f.airline, isRoundTrip, passengers)
               }));
               
               const flexibleResults = processFlightsWithFlexibleBudget(structuredFlights);
@@ -1011,9 +1062,9 @@
                 <Icon name="plane" className="h-6 w-6 text-emerald-400 animate-pulse" />
               </div>
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v3.0</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v3.1</span>
                 <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-                  JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold font-mono">Tactical Radar & Matrix</span>
+                  JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold font-mono">Instant Checkouts</span>
                 </h1>
               </div>
             </div>
@@ -1741,9 +1792,9 @@
                                         href={flight.bookingLink} 
                                         target="_blank" 
                                         rel="noopener noreferrer"
-                                        className="bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold text-[11px] transition-all flex items-center gap-1"
+                                        className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-1.5 rounded-lg font-extrabold text-[11px] transition-all flex items-center gap-1.5 shadow-md shadow-emerald-500/10"
                                       >
-                                        Comprar Directo <Icon name="external" className="h-3 w-3" />
+                                        Comprar Directo <Icon name="external" className="h-3.5 w-3.5" />
                                       </a>
                                     </div>
                                   </div>
@@ -1756,7 +1807,7 @@
                     )}
                   </div>
 
-                  {/* NUEVO MÓDULO: MATRIZ DE COMPARACIÓN METASEARCH (GOOGLE FLIGHTS, SKYSCANNER, ETC.) */}
+                  {/* MATRIZ DE COMPARACIÓN METASEARCH (GOOGLE FLIGHTS, SKYSCANNER, ETC.) */}
                   {selectedFlight && (
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl transition-all duration-300 relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl"></div>
@@ -1779,16 +1830,21 @@
 
                       <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                         
-                        {/* Sovereign Direct */}
+                        {/* Sovereign Direct (Official Checkout) */}
                         <div className="bg-slate-950/80 p-3 rounded-lg border-2 border-emerald-500 flex flex-col justify-between">
                           <div>
-                            <span className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider">JetSaaS Direct</span>
+                            <span className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider">Checkout Directo</span>
                             <span className="text-lg font-black text-white font-mono block mt-1">${selectedFlight.price} USD</span>
-                            <span className="text-[9px] text-slate-500 block mt-0.5">Vuelo Directo D2C</span>
+                            <span className="text-[9px] text-slate-500 block mt-0.5">Pre-carga en {selectedFlight.airline}</span>
                           </div>
-                          <div className="mt-3 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold py-1 px-2 rounded text-center">
-                            Mejor Opción
-                          </div>
+                          <a 
+                            href={selectedFlight.bookingLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-3 text-[10px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-1 px-2 rounded text-center flex items-center justify-center gap-1 transition-all"
+                          >
+                            Ir al portal <Icon name="external" className="h-3 w-3" />
+                          </a>
                         </div>
 
                         {/* Google Flights */}
