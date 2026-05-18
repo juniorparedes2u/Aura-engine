@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JetSaaS - Sovereign Flight Engine (v2.7 Multiprovider)</title>
+  <title>JetSaaS - Sovereign Flight Engine (v2.8 FlexBudget & Multi-Model)</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -51,7 +51,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // Componente centralizado de Iconos SVG para evitar bloqueos por dependencias externas
+    // Componente de Iconos SVG
     const Icon = ({ name, className = "h-5 w-5", ...props }) => {
       const icons = {
         plane: (
@@ -259,7 +259,7 @@
       return new Blob([buffer], { type: 'audio/wav' });
     }
 
-    // Extractor robusto de bloques JSON en respuestas de LLMs
+    // Extractor de bloques JSON
     function extractJsonFromText(text) {
       if (!text) return null;
       try {
@@ -301,6 +301,9 @@
           if (response.status === 400) {
             throw new Error("BAD_REQUEST");
           }
+          if (response.status === 404) {
+            throw new Error("MODEL_NOT_FOUND");
+          }
           if (response.status === 429) {
             if (retries > 0) {
               await new Promise(res => setTimeout(res, delay));
@@ -312,7 +315,7 @@
         }
         return response;
       } catch (err) {
-        if (err.message === "API_KEY_INVALID" || err.message === "RATE_LIMIT_EXCEEDED" || err.message === "BAD_REQUEST") {
+        if (err.message === "API_KEY_INVALID" || err.message === "RATE_LIMIT_EXCEEDED" || err.message === "BAD_REQUEST" || err.message === "MODEL_NOT_FOUND") {
           throw err; 
         }
         if (retries > 0) {
@@ -352,12 +355,13 @@
       const [loading, setLoading] = useState(false);
       const [flights, setFlights] = useState([]);
       
-      // AI Providers Configuration
+      // Configuración Multiproveedor & Modelos de Gemini
       const [useAI, setUseAI] = useState(true);
       const [aiProvider, setAiProvider] = useState('gemini'); // 'gemini', 'openrouter', 'anthropic'
+      const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash'); // Soporta auto-recuperación si da 404
       const [openRouterModel, setOpenRouterModel] = useState('anthropic/claude-3.5-sonnet');
       const [apiKey, setApiKey] = useState('');
-      const [useGrounding, setUseGrounding] = useState(true); // Toggle para Google Grounding (evita el HTTP 400 de cuentas gratis)
+      const [useGrounding, setUseGrounding] = useState(false); // Desactivado por defecto para evitar 400 en Free Tier
 
       const [alertMsg, setAlertMsg] = useState(null);
 
@@ -371,19 +375,19 @@
       const audioRef = useRef(null);
 
       const [chatMessages, setChatMessages] = useState([
-        { role: 'assistant', text: '¡Hola! Soy tu Copiloto de Tarifas Aéreas. He sido actualizado para admitir múltiples proveedores de IA como Claude 3.5 y OpenRouter. ¿Quieres saber si te conviene comprar hoy?' }
+        { role: 'assistant', text: '¡Hola! Soy tu Copiloto de Tarifas. He sido actualizado con el algoritmo de presupuesto inteligente de +-50% de tolerancia. ¿Quieres analizar alguna ruta en especial?' }
       ]);
       const [chatInput, setChatInput] = useState('');
       const [chatLoading, setChatLoading] = useState(false);
 
       const [logs, setLogs] = useState([
-        { timestamp: new Date().toLocaleTimeString(), type: 'SEC', message: 'Inicializando aislamiento lógico RLS para Tenant ID: enterprise_corp' },
-        { timestamp: new Date().toLocaleTimeString(), type: 'SYS', message: 'Cargando motor de aeropuertos globales e integrador de APIs v2.7.' }
+        { timestamp: new Date().toLocaleTimeString(), type: 'SEC', message: 'Aislamiento lógico RLS cargado para Tenant ID: enterprise_corp' },
+        { timestamp: new Date().toLocaleTimeString(), type: 'SYS', message: 'Motor de presupuesto flexible v2.8 inicializado con tolerancia de ±50%.' }
       ]);
 
-      const [mrr] = useState(18940);
-      const [ebitda] = useState(86.3);
-      const [apiUsage, setApiUsage] = useState({ used: 462, limit: 10000 });
+      const [mrr] = useState(19420);
+      const [ebitda] = useState(86.5);
+      const [apiUsage, setApiUsage] = useState({ used: 471, limit: 10000 });
 
       const addLog = (type, message) => {
         setLogs(prev => [{ timestamp: new Date().toLocaleTimeString(), type, message }, ...prev].slice(0, 30));
@@ -391,7 +395,7 @@
 
       const showToast = (message, type = 'info') => {
         setAlertMsg({ text: message, type });
-        setTimeout(() => setAlertMsg(null), 7000);
+        setTimeout(() => setAlertMsg(null), 8000);
       };
 
       const sanitizeInput = (val) => {
@@ -430,9 +434,9 @@
         }
 
         if (aiProvider === 'gemini') {
-          // Bucle adaptativo para Gemini (evita caídas por errores 400 con herramientas)
-          const attemptGeminiFetch = async (enableTools) => {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+          // Bucle adaptativo para Gemini (evita caídas por errores 400 o 404 de modelo)
+          const attemptGeminiFetch = async (modelToUse, enableTools) => {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
             const payload = {
               contents: [{ parts: [{ text: prompt }] }],
               systemInstruction: { parts: [{ text: systemPrompt }] }
@@ -453,11 +457,17 @@
           };
 
           try {
-            return await attemptGeminiFetch(customGrounding);
+            return await attemptGeminiFetch(geminiModel, customGrounding);
           } catch (err) {
+            // Si el modelo seleccionado da 404, bajamos automáticamente a gemini-1.5-flash
+            if ((err.message === "MODEL_NOT_FOUND" || err.message === "Error HTTP: 404") && geminiModel !== 'gemini-1.5-flash') {
+              addLog('WRN', `Modelo ${geminiModel} no soportado por tu clave de API. Transfiriendo automáticamente a gemini-1.5-flash...`);
+              setGeminiModel('gemini-1.5-flash');
+              return await attemptGeminiFetch('gemini-1.5-flash', false);
+            }
             if (err.message === "BAD_REQUEST" && customGrounding) {
               addLog('WRN', "Error HTTP 400. Reintentando consulta inmediata desactivando el Grounding de Google...");
-              return await attemptGeminiFetch(false); // Fallback sin google_search
+              return await attemptGeminiFetch(geminiModel, false); 
             }
             throw err;
           }
@@ -489,8 +499,7 @@
         } 
         
         else if (aiProvider === 'anthropic') {
-          // Nota sobre CORS directo de Anthropic
-          addLog('SEC', "Enviando llamada a API nativa de Anthropic (Requiere desactivar CORS local)");
+          addLog('SEC', "Invocando llamada API de Anthropic.");
           const url = `https://api.anthropic.com/v1/messages`;
           const payload = {
             model: "claude-3-5-sonnet-20241022",
@@ -588,11 +597,8 @@
           let errorMsg = err.message;
           if (err.message === "API_KEY_INVALID") {
             showToast('API Key incorrecta o denegada.', 'error');
-          } else if (err.message === "TypeError" && aiProvider === 'anthropic') {
-            showToast('Error de CORS directo en Anthropic. Usa OpenRouter para conectar con Claude de manera segura.', 'error');
-            addLog('ERR', "Llamada directa bloqueada por CORS del navegador para Anthropic. Se recomienda OpenRouter.");
           } else {
-            showToast('Problema al conectar con la IA. Se recomienda revisar la consola del navegador.', 'error');
+            showToast('Problema al conectar con la IA. Se recomienda verificar los logs o tu clave API.', 'error');
           }
           addLog('ERR', `Fallo de consulta AI: ${errorMsg}`);
         } finally {
@@ -611,6 +617,33 @@
           setDestinationInput(`${airport.code} - ${airport.city}`);
           setShowDestDropdown(false);
           addLog('SYS', `Destino fijado: ${airport.code} (${airport.name})`);
+        }
+      };
+
+      // Nuevo algoritmo de filtrado dinámico para presupuesto flexible
+      const processFlightsWithFlexibleBudget = (parsedFlights) => {
+        if (!Array.isArray(parsedFlights) || parsedFlights.length === 0) return [];
+
+        // Si el presupuesto es 0, mostramos todos ordenados por precio más bajo
+        if (budget <= 0) {
+          addLog('SYS', `Presupuesto es $0. Entrando en Modo 'Mejor Oferta Disponible' sin límite de precio.`);
+          return [...parsedFlights].sort((a, b) => a.price - b.price);
+        }
+
+        const maxMarginLimit = budget * 1.5; // Tolerancia superior de +50%
+        
+        // Filtramos aquellos que entren en el rango de tolerancia ligera
+        let inBudgetAndTolerance = parsedFlights.filter(f => f.price <= maxMarginLimit);
+
+        if (inBudgetAndTolerance.length > 0) {
+          addLog('SYS', `Filtrado completado: ${inBudgetAndTolerance.length} vuelos encontrados dentro del rango de tolerancia (+50% de $${budget} USD).`);
+          return inBudgetAndTolerance.sort((a, b) => a.price - b.price);
+        } else {
+          // Si ABSOLUTAMENTE ningún vuelo entra en la tolerancia del presupuesto, mostramos los vuelos de todas formas
+          // pero ordenados del más barato al más caro, para que el usuario siempre tenga opciones y compre
+          addLog('WRN', `Ningún vuelo entra en el presupuesto de $${budget} USD. Mostrando mejores ofertas alternativas del mercado.`);
+          showToast(`Las tarifas actuales exceden tu presupuesto ideal, pero te mostramos las opciones más económicas del mercado.`, 'warning');
+          return [...parsedFlights].sort((a, b) => a.price - b.price);
         }
       };
 
@@ -650,7 +683,7 @@
             return;
           }
 
-          addLog('AI', `Iniciando consulta de vuelos reales vía ${aiProvider.toUpperCase()}...`);
+          addLog('AI', `Iniciando consulta de vuelos reales vía ${aiProvider.toUpperCase()} (${geminiModel})...`);
           
           const systemPrompt = "Act strictly as a real-time flight ticketing data structure parser. Return raw JSON arrays only.";
           const prompt = `Find active commercial flights serving route ${cleanOrigin} to ${cleanDestination}. 
@@ -659,7 +692,7 @@
           ${isRoundTrip ? `- Return: ${returnDate}` : '- One Way'}
           - Passengers: ${passengers}
           - Carry-on Luggage: ${hasHandLuggage ? 'Included' : 'Basic econ, personal item only'}
-          - Total Group Budget limit: ${budget} USD
+          - Target Budget ideal: ${budget} USD (If all flights are higher, return them anyway, do not return empty array)
 
           Return EXACTLY this JSON structure, completely pure without markdown blocks:
           [
@@ -680,12 +713,14 @@
             const parsedFlights = extractJsonFromText(rawText);
             
             if (Array.isArray(parsedFlights) && parsedFlights.length > 0) {
-              const structuralFlights = parsedFlights.map(f => ({
+              const structuredFlights = parsedFlights.map(f => ({
                 ...f,
                 bookingLink: f.bookingLink && f.bookingLink.startsWith('http') ? f.bookingLink : generateDeepLink(cleanOrigin, cleanDestination, departureDate, isRoundTrip ? returnDate : '', f.airline, isRoundTrip, passengers)
               }));
-              setFlights(structuralFlights);
-              addLog('SYS', `Búsqueda IA completada. ${structuralFlights.length} boletos válidos mapeados.`);
+              
+              // Aplicar el nuevo algoritmo de presupuesto flexible
+              const flexibleResults = processFlightsWithFlexibleBudget(structuredFlights);
+              setFlights(flexibleResults);
               setApiUsage(prev => ({ ...prev, used: prev.used + 1 }));
             } else {
               throw new Error('JSON_FALSIFICADO');
@@ -703,14 +738,14 @@
 
       const executeDeterministicFallback = (from, to) => {
         const mockAirlines = [
-          { name: 'Iberia', code: 'IB', basePrice: 580, durationOutbound: '11h 15m', durationInbound: '11h 05m', stops: 0 },
-          { name: 'Aeroméxico', code: 'AM', basePrice: 650, durationOutbound: '11h 20m', durationInbound: '11h 10m', stops: 0 },
-          { name: 'Lufthansa', code: 'LH', basePrice: 820, durationOutbound: '14h 45m', durationInbound: '14h 20m', stops: 1 },
-          { name: 'United Airlines', code: 'UA', basePrice: 490, durationOutbound: '15h 10m', durationInbound: '15h 30m', stops: 1 }
+          { name: 'Iberia', code: 'IB', basePrice: 280, durationOutbound: '11h 15m', durationInbound: '11h 05m', stops: 0 },
+          { name: 'Aeroméxico', code: 'AM', basePrice: 320, durationOutbound: '11h 20m', durationInbound: '11h 10m', stops: 0 },
+          { name: 'Lufthansa', code: 'LH', basePrice: 480, durationOutbound: '14h 45m', durationInbound: '14h 20m', stops: 1 },
+          { name: 'United Airlines', code: 'UA', basePrice: 250, durationOutbound: '15h 10m', durationInbound: '15h 30m', stops: 1 }
         ];
 
-        const results = mockAirlines.map((airline, idx) => {
-          const variance = Math.sin(idx + 1) * 75;
+        const rawResults = mockAirlines.map((airline, idx) => {
+          const variance = Math.sin(idx + 1) * 60;
           let calculatedPrice = airline.basePrice + variance;
           
           calculatedPrice = calculatedPrice * passengers;
@@ -735,10 +770,11 @@
             stops: airline.stops,
             bookingLink: generateDeepLink(from, to, departureDate, isRoundTrip ? returnDate : '', airline.code, isRoundTrip, passengers)
           };
-        }).filter(f => f.price <= budget);
+        });
 
-        setFlights(results);
-        addLog('SYS', `Failover local completado para ${passengers} pasajero(s).`);
+        // Aplicamos el motor de presupuesto flexible para el Mock Local
+        const flexibleResults = processFlightsWithFlexibleBudget(rawResults);
+        setFlights(flexibleResults);
       };
 
       const handleGenerateTTS = async (flight) => {
@@ -746,7 +782,6 @@
         const tripText = isRoundTrip ? `un viaje redondo de ida y vuelta regresando el ${returnDate}` : 'un viaje de solo ida';
         const spokenText = `¡Excelente oferta encontrada! Vuela de ${origin.city} a ${destination.city} operado por ${flight.airline}. Este es ${tripText} para ${passengers} pasajero, ${luggageText}. Tu presupuesto final reservado es de ${flight.price} dólares. ¡Una gran opción de compra directa!`;
 
-        // Si se usa Gemini y hay API Key, usamos TTS avanzado de Google
         if (aiProvider === 'gemini' && apiKey) {
           setAudioLoading(true);
           if (audioUrl) {
@@ -790,19 +825,18 @@
               const urlObj = URL.createObjectURL(wavBlob);
               
               setAudioUrl(urlObj);
-              addLog('SYS', `Audio neural de Gemini generado a ${sampleRate}Hz.`);
+              addLog('SYS', `Audio generado exitosamente.`);
               showToast('Audioguía de vuelo lista.', 'success');
             } else {
               throw new Error("No se pudo estructurar el PCM.");
             }
           } catch (err) {
-            addLog('WRN', `TTS de Gemini no disponible. Conmutando a la Web Speech API nativa del navegador.`);
+            addLog('WRN', `TTS de Gemini no disponible en este plan. Cambiando a síntesis local del navegador.`);
             speakLocalSpeech(spokenText);
           } finally {
             setAudioLoading(false);
           }
         } else {
-          // Fallback para OpenRouter / Anthropic sin dependencias
           speakLocalSpeech(spokenText);
         }
       };
@@ -883,7 +917,7 @@
         - Fechas: Ida ${departureDate}${isRoundTrip ? `, Regreso ${returnDate}` : ' (Solo ida)'}
         - Pasajeros: ${passengers}
         - Equipaje: ${hasHandLuggage ? 'De mano incluido' : 'Solo un artículo personal'}
-        - Presupuesto: ${budget} USD.
+        - Presupuesto ideal: ${budget} USD.
         
         Dale recomendaciones de si es un precio ideal, o si debe aguardar a que las aerolíneas reduzcan tarifas basándote en tendencias de mercado reales de 2026.`;
 
@@ -922,9 +956,9 @@
                 <Icon name="plane" className="h-6 w-6 text-emerald-400 animate-pulse" />
               </div>
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v2.7</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v2.8</span>
                 <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-                  JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold">Roundtrip Pro</span>
+                  JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold font-mono">FlexBudget Pro</span>
                 </h1>
               </div>
             </div>
@@ -1061,10 +1095,10 @@
                         onClick={() => handleGlobalAirportAISearch('origin')}
                         disabled={searchingOrigin}
                         title="Buscar aeropuertos en todo el mundo con IA"
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0 animate-pulse"
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
                       >
                         {searchingOrigin ? <Icon name="refresh" className="h-3.5 w-3.5 animate-spin" /> : <Icon name="globe" className="h-3.5 w-3.5" />}
-                        <span className="text-[10px] font-bold">Global IA</span>
+                        <span className="text-[10px] font-bold font-sans">Global IA</span>
                       </button>
                     </div>
 
@@ -1114,10 +1148,10 @@
                         onClick={() => handleGlobalAirportAISearch('destination')}
                         disabled={searchingDestination}
                         title="Buscar aeropuertos en todo el mundo con IA"
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0 animate-pulse"
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
                       >
                         {searchingDestination ? <Icon name="refresh" className="h-3.5 w-3.5 animate-spin" /> : <Icon name="globe" className="h-3.5 w-3.5" />}
-                        <span className="text-[10px] font-bold">Global IA</span>
+                        <span className="text-[10px] font-bold font-sans">Global IA</span>
                       </button>
                     </div>
 
@@ -1203,15 +1237,19 @@
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                        <Icon name="dollar" className="h-3.5 w-3.5 text-emerald-400" /> Presupuesto Máx.
-                      </label>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-xs font-semibold text-slate-400 flex items-center gap-1">
+                          <Icon name="dollar" className="h-3.5 w-3.5 text-emerald-400" /> Presupuesto
+                        </label>
+                        <span className="text-[9px] text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded">Tolerancia ±50%</span>
+                      </div>
                       <div className="relative">
                         <span className="absolute left-2.5 top-2.5 text-xs text-slate-500 font-bold">$</span>
                         <input 
                           type="number" 
                           value={budget} 
                           onChange={(e) => setBudget(Number(e.target.value))}
+                          placeholder="Cero ($0) para sin límite"
                           className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 pl-6 pr-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
                         />
                       </div>
@@ -1260,49 +1298,71 @@
                     {useAI && (
                       <div className="space-y-3">
                         {/* Selector de Proveedor */}
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">
-                            Proveedor de IA
-                          </label>
-                          <select
-                            value={aiProvider}
-                            onChange={(e) => {
-                              setAiProvider(e.target.value);
-                              setApiKey('');
-                              addLog('SYS', `Proveedor de IA cambiado a: ${e.target.value.toUpperCase()}`);
-                            }}
-                            className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none focus:border-indigo-500"
-                          >
-                            <option value="gemini">Google Gemini (Directo)</option>
-                            <option value="openrouter">OpenRouter (Claude 3.5 / Llama 3 / GPT-4)</option>
-                            <option value="anthropic">Anthropic Claude (Nativo CORS-danger)</option>
-                          </select>
-                        </div>
-
-                        {/* Selector de modelo solo si es OpenRouter */}
-                        {aiProvider === 'openrouter' && (
+                        <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="block text-[10px] font-semibold text-slate-400 mb-1">
-                              Modelo (OpenRouter)
+                              Proveedor
                             </label>
                             <select
-                              value={openRouterModel}
-                              onChange={(e) => setOpenRouterModel(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none"
+                              value={aiProvider}
+                              onChange={(e) => {
+                                setAiProvider(e.target.value);
+                                setApiKey('');
+                                addLog('SYS', `Proveedor cambiado a: ${e.target.value.toUpperCase()}`);
+                              }}
+                              className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none focus:border-indigo-500 font-mono"
                             >
-                              <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (Recomendado)</option>
-                              <option value="meta-llama/llama-3.1-70b-instruct">Llama 3.1 70B</option>
-                              <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
-                              <option value="openai/gpt-4o">GPT-4o</option>
+                              <option value="gemini">Gemini</option>
+                              <option value="openrouter">OpenRouter</option>
+                              <option value="anthropic">Anthropic</option>
                             </select>
                           </div>
-                        )}
+
+                          {/* Selector de Modelos Inteligente para prevenir 404 */}
+                          {aiProvider === 'gemini' && (
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                                Modelo Gemini
+                              </label>
+                              <select
+                                value={geminiModel}
+                                onChange={(e) => {
+                                  setGeminiModel(e.target.value);
+                                  addLog('SYS', `Conmutando modelo Gemini a: ${e.target.value}`);
+                                }}
+                                className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none font-mono"
+                              >
+                                <option value="gemini-2.5-flash">2.5 Flash (Fijo)</option>
+                                <option value="gemini-1.5-flash">1.5 Flash (Estable)</option>
+                                <option value="gemini-2.5-flash-preview-09-2025">2.5 Flash Preview</option>
+                              </select>
+                            </div>
+                          )}
+
+                          {aiProvider === 'openrouter' && (
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                                Modelo OpenRouter
+                              </label>
+                              <select
+                                value={openRouterModel}
+                                onChange={(e) => setOpenRouterModel(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none font-mono"
+                              >
+                                <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+                                <option value="meta-llama/llama-3.1-70b-instruct">Llama 3.1 70B</option>
+                                <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                <option value="openai/gpt-4o">GPT-4o</option>
+                              </select>
+                            </div>
+                          )}
+                        </div>
 
                         {/* Input de API Key Dinámica */}
                         <div>
                           <label className="block text-[10px] font-mono text-slate-400 mb-1 flex items-center justify-between">
                             <span>API Key ({aiProvider.toUpperCase()})</span>
-                            <span className="text-[9px] text-emerald-500 font-bold">Obligatorio</span>
+                            <span className="text-[9px] text-emerald-500 font-bold">Requerido</span>
                           </label>
                           <div className="relative">
                             <Icon name="key" className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-600" />
@@ -1329,12 +1389,15 @@
                               <input 
                                 type="checkbox" 
                                 checked={useGrounding} 
-                                onChange={(e) => setUseGrounding(e.target.checked)}
+                                onChange={(e) => {
+                                  setUseGrounding(e.target.checked);
+                                  addLog('SYS', `Búsqueda por Grounding de Google: ${e.target.checked ? 'Habilitada (Requiere cuenta de pago)' : 'Deshabilitada (Segura)'}`);
+                                }}
                                 className="rounded text-indigo-500 bg-slate-900 border-slate-800"
                               />
                             </div>
                             <span className="text-[9px] text-slate-500 block leading-tight">
-                              Nota: Si usas una clave gratuita de Gemini, mantén esta opción desactivada para evitar errores HTTP 400.
+                              Mantén Grounding desactivado si usas claves API gratuitas para evitar rechazos HTTP 400.
                             </span>
 
                             <div>
@@ -1351,12 +1414,6 @@
                                 ))}
                               </select>
                             </div>
-                          </div>
-                        )}
-
-                        {aiProvider === 'anthropic' && (
-                          <div className="p-2 bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded text-[9px] leading-tight">
-                            ⚠️ <strong>Advertencia:</strong> Las peticiones directas de Anthropic desde el navegador suelen bloquearse por CORS. Te sugerimos usar <strong>OpenRouter</strong> con Claude 3.5 Sonnet para un flujo client-side seguro.
                           </div>
                         )}
 
@@ -1426,7 +1483,7 @@
                         <h2 className="text-md font-bold text-white flex items-center gap-1.5">
                           <Icon name="plane" className="h-4.5 w-4.5 text-emerald-400" /> Enlaces de Compra Directa de Boletos
                         </h2>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <p className="text-[11px] text-slate-400 mt-0.5 font-sans">
                           Vuelos desde {origin.city} hacia {destination.city} ({isRoundTrip ? 'Ida y Vuelta' : 'Solo Ida'}, {passengers} pax)
                         </p>
                       </div>
@@ -1449,6 +1506,27 @@
                       <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1">
                         {flights.map((flight, idx) => {
                           const isSelected = selectedFlight?.flightNumber === flight.flightNumber;
+                          
+                          // Lógica visual de Presupuesto dinámico en UI
+                          let budgetBadgeColor = "bg-slate-900 text-slate-300 border-slate-800";
+                          let budgetLabel = "Oferta Disponible";
+                          
+                          if (budget > 0) {
+                            if (flight.price <= budget) {
+                              budgetBadgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                              budgetLabel = "Dentro de presupuesto";
+                            } else if (flight.price <= budget * 1.5) {
+                              budgetBadgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                              budgetLabel = "Tolerancia Ligera (+50%)";
+                            } else {
+                              budgetBadgeColor = "bg-rose-500/10 text-rose-400 border-rose-500/20";
+                              budgetLabel = "Alternativa (Excede presupuesto)";
+                            }
+                          } else {
+                            budgetBadgeColor = "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
+                            budgetLabel = "Mejor Tarifa Directa";
+                          }
+
                           return (
                             <div 
                               key={idx} 
@@ -1461,10 +1539,16 @@
                               }}
                             >
                               <div className="flex items-center justify-between mb-2">
-                                <span className="bg-slate-900 text-slate-300 px-2.5 py-0.5 rounded text-[11px] font-bold border border-slate-800 flex items-center gap-1.5">
+                                <span className="bg-slate-900 text-slate-300 px-2.5 py-0.5 rounded text-[11px] font-bold border border-slate-800 flex items-center gap-1.5 font-mono">
                                   <Icon name="sparkles" className="h-3 w-3 text-emerald-400" /> {flight.airline}
                                 </span>
+                                
                                 <div className="flex items-center gap-2">
+                                  {/* Presupuesto Flexible Badge */}
+                                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${budgetBadgeColor}`}>
+                                    {budgetLabel}
+                                  </span>
+
                                   {hasHandLuggage ? (
                                     <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1">
                                       <Icon name="luggage" className="h-2.5 w-2.5" /> Equipaje Incluido
