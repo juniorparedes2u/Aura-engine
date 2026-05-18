@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JetSaaS - Sovereign Flight Engine</title>
+  <title>JetSaaS - Sovereign Flight Engine (v2.7 Multiprovider)</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -174,6 +174,11 @@
           <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
           </svg>
+        ),
+        network: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 110-18 9 9 0 010 18zm0-3a6 6 0 100-12 6 6 0 000 12zm0-2a4 4 0 110-8 4 4 0 010 8z" />
+          </svg>
         )
       };
       return icons[name] || icons['plane'];
@@ -254,12 +259,47 @@
       return new Blob([buffer], { type: 'audio/wav' });
     }
 
+    // Extractor robusto de bloques JSON en respuestas de LLMs
+    function extractJsonFromText(text) {
+      if (!text) return null;
+      try {
+        return JSON.parse(text.trim());
+      } catch (e) {
+        const startArr = text.indexOf('[');
+        const startObj = text.indexOf('{');
+        let start = -1;
+        let end = -1;
+
+        if (startArr !== -1 && (startObj === -1 || startArr < startObj)) {
+          start = startArr;
+          end = text.lastIndexOf(']');
+        } else if (startObj !== -1) {
+          start = startObj;
+          end = text.lastIndexOf('}');
+        }
+
+        if (start !== -1 && end !== -1 && end > start) {
+          const jsonSub = text.substring(start, end + 1);
+          try {
+            return JSON.parse(jsonSub);
+          } catch (err) {
+            console.error("No se pudo parsear el JSON extraído", err);
+            return null;
+          }
+        }
+        return null;
+      }
+    }
+
     async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
       try {
         const response = await fetch(url, options);
         if (!response.ok) {
           if (response.status === 403) {
             throw new Error("API_KEY_INVALID");
+          }
+          if (response.status === 400) {
+            throw new Error("BAD_REQUEST");
           }
           if (response.status === 429) {
             if (retries > 0) {
@@ -272,8 +312,8 @@
         }
         return response;
       } catch (err) {
-        if (err.message === "API_KEY_INVALID" || err.message === "RATE_LIMIT_EXCEEDED") {
-          throw err; // No reintentar indefinidamente si la clave está bloqueada o superó límite
+        if (err.message === "API_KEY_INVALID" || err.message === "RATE_LIMIT_EXCEEDED" || err.message === "BAD_REQUEST") {
+          throw err; 
         }
         if (retries > 0) {
           await new Promise(res => setTimeout(res, delay));
@@ -311,9 +351,14 @@
       const [budget, setBudget] = useState(1500);
       const [loading, setLoading] = useState(false);
       const [flights, setFlights] = useState([]);
-      const [useAI, setUseAI] = useState(true);
-      const [apiKey, setApiKey] = useState('');
       
+      // AI Providers Configuration
+      const [useAI, setUseAI] = useState(true);
+      const [aiProvider, setAiProvider] = useState('gemini'); // 'gemini', 'openrouter', 'anthropic'
+      const [openRouterModel, setOpenRouterModel] = useState('anthropic/claude-3.5-sonnet');
+      const [apiKey, setApiKey] = useState('');
+      const [useGrounding, setUseGrounding] = useState(true); // Toggle para Google Grounding (evita el HTTP 400 de cuentas gratis)
+
       const [alertMsg, setAlertMsg] = useState(null);
 
       const [selectedFlight, setSelectedFlight] = useState(null);
@@ -326,19 +371,19 @@
       const audioRef = useRef(null);
 
       const [chatMessages, setChatMessages] = useState([
-        { role: 'assistant', text: '¡Hola! Soy tu Copiloto de Negociación de Tarifas. ¿Tienes dudas de si comprar ahora o esperar a que bajen los precios para tu ruta con equipaje o de ida y vuelta?' }
+        { role: 'assistant', text: '¡Hola! Soy tu Copiloto de Tarifas Aéreas. He sido actualizado para admitir múltiples proveedores de IA como Claude 3.5 y OpenRouter. ¿Quieres saber si te conviene comprar hoy?' }
       ]);
       const [chatInput, setChatInput] = useState('');
       const [chatLoading, setChatLoading] = useState(false);
 
       const [logs, setLogs] = useState([
         { timestamp: new Date().toLocaleTimeString(), type: 'SEC', message: 'Inicializando aislamiento lógico RLS para Tenant ID: enterprise_corp' },
-        { timestamp: new Date().toLocaleTimeString(), type: 'SYS', message: 'Cargando motor híbrido de aeropuertos globales.' }
+        { timestamp: new Date().toLocaleTimeString(), type: 'SYS', message: 'Cargando motor de aeropuertos globales e integrador de APIs v2.7.' }
       ]);
 
-      const [mrr] = useState(15420);
-      const [ebitda] = useState(84.1);
-      const [apiUsage, setApiUsage] = useState({ used: 458, limit: 10000 });
+      const [mrr] = useState(18940);
+      const [ebitda] = useState(86.3);
+      const [apiUsage, setApiUsage] = useState({ used: 462, limit: 10000 });
 
       const addLog = (type, message) => {
         setLogs(prev => [{ timestamp: new Date().toLocaleTimeString(), type, message }, ...prev].slice(0, 30));
@@ -346,7 +391,7 @@
 
       const showToast = (message, type = 'info') => {
         setAlertMsg({ text: message, type });
-        setTimeout(() => setAlertMsg(null), 6000);
+        setTimeout(() => setAlertMsg(null), 7000);
       };
 
       const sanitizeInput = (val) => {
@@ -378,6 +423,100 @@
         return `https://www.google.com/travel/flights?q=Flights%20from%20${from}%20to%20${to}%20${datesQuery}%20${paxParam}%20${tripTypeString}`;
       };
 
+      // Función de consulta unificada para todos los proveedores de IA
+      const runAiCompletion = async (prompt, systemPrompt, customGrounding = false) => {
+        if (!apiKey) {
+          throw new Error("NO_API_KEY");
+        }
+
+        if (aiProvider === 'gemini') {
+          // Bucle adaptativo para Gemini (evita caídas por errores 400 con herramientas)
+          const attemptGeminiFetch = async (enableTools) => {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+              contents: [{ parts: [{ text: prompt }] }],
+              systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            if (enableTools && useGrounding) {
+              payload.tools = [{ "google_search": {} }];
+            }
+
+            const response = await fetchWithBackoff(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text;
+          };
+
+          try {
+            return await attemptGeminiFetch(customGrounding);
+          } catch (err) {
+            if (err.message === "BAD_REQUEST" && customGrounding) {
+              addLog('WRN', "Error HTTP 400. Reintentando consulta inmediata desactivando el Grounding de Google...");
+              return await attemptGeminiFetch(false); // Fallback sin google_search
+            }
+            throw err;
+          }
+        } 
+        
+        else if (aiProvider === 'openrouter') {
+          const url = `https://openrouter.ai/api/v1/chat/completions`;
+          const payload = {
+            model: openRouterModel,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt }
+            ]
+          };
+
+          const response = await fetchWithBackoff(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+              'HTTP-Referer': 'https://jetsaas-flight.com',
+              'X-Title': 'JetSaaS Sovereign Engine'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await response.json();
+          return data.choices?.[0]?.message?.content;
+        } 
+        
+        else if (aiProvider === 'anthropic') {
+          // Nota sobre CORS directo de Anthropic
+          addLog('SEC', "Enviando llamada a API nativa de Anthropic (Requiere desactivar CORS local)");
+          const url = `https://api.anthropic.com/v1/messages`;
+          const payload = {
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 1024,
+            system: systemPrompt,
+            messages: [
+              { role: "user", content: prompt }
+            ]
+          };
+
+          const response = await fetchWithBackoff(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+              'dangerously-allow-browser': 'true'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await response.json();
+          return data.content?.[0]?.text;
+        }
+      };
+
       const handleAirportInputChange = (val, type) => {
         if (type === 'origin') {
           setOriginInput(val);
@@ -405,7 +544,7 @@
       const handleGlobalAirportAISearch = async (type) => {
         const query = type === 'origin' ? originInput : destinationInput;
         if (!query || query.length < 2) {
-          showToast('Por favor, ingresa al menos 2 caracteres para buscar en la base de datos mundial.', 'warning');
+          showToast('Ingresa al menos 2 caracteres para buscar en la base de datos de aeropuertos.', 'warning');
           return;
         }
 
@@ -413,67 +552,49 @@
         const setSuggestions = type === 'origin' ? setOriginSuggestions : setDestinationSuggestions;
 
         if (!apiKey) {
-          showToast('Ingresa una Gemini API Key válida en el formulario para realizar búsquedas globales por IA.', 'warning');
+          showToast(`Ingresa tu API Key de ${aiProvider.toUpperCase()} para realizar búsquedas mundiales.`, 'warning');
           return;
         }
 
         setSearching(true);
-        addLog('AI', `Buscando aeropuertos globales en tiempo real para: "${query}"`);
+        addLog('AI', `Buscando aeropuerto mundial para: "${query}" con ${aiProvider.toUpperCase()}...`);
 
-        const prompt = `Search for actual airports anywhere in the world matching "${query}". 
-        You MUST return a strictly clean JSON array representing actual commercial airports with correct 3-letter IATA codes.
-        Return EXACTLY this JSON structure and absolutely nothing else (no markdown wrappers, no backticks, no notes):
+        const systemInstruction = "Act strictly as a high speed airport database lookup API. Respond with raw JSON arrays only.";
+        const prompt = `Find commercial airports matching "${query}". 
+        Return EXACTLY this JSON structure without any descriptive text or markdown formatting:
         [
           {
-            "code": "XYZ",
+            "code": "IATA_CODE",
             "city": "City Name",
             "name": "Airport Official Name",
             "country": "Country Name"
           }
-        ]
-        If no actual airports exist for that query, return an empty array [].`;
+        ]`;
 
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-          const payload = {
-            contents: [{ parts: [{ text: prompt }] }],
-            systemInstruction: {
-              parts: [{ text: "Act as an ultra-fast global airport directory lookup API. Respond strictly with valid JSON. Double check that IATA codes are real and valid." }]
-            }
-          };
-
-          const response = await fetchWithBackoff(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await response.json();
-          const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          const cleanedJsonText = textResponse.replace(/```json|```/gi, '').trim();
-          const parsedAirports = JSON.parse(cleanedJsonText);
+          const rawText = await runAiCompletion(prompt, systemInstruction, false);
+          const parsedAirports = extractJsonFromText(rawText);
           
           if (Array.isArray(parsedAirports)) {
             setSuggestions(parsedAirports);
             addLog('SYS', `Búsqueda global IA completada. ${parsedAirports.length} aeropuertos encontrados.`);
             if (parsedAirports.length === 0) {
-              showToast('No se encontraron aeropuertos mundiales con esa búsqueda.', 'warning');
+              showToast('No se encontraron aeropuertos mundiales con esa descripción.', 'warning');
             }
           } else {
-            throw new Error('Formato de respuesta incorrecto');
+            throw new Error('FORMATO_RESPUESTA_INVALIDO');
           }
         } catch (err) {
           let errorMsg = err.message;
           if (err.message === "API_KEY_INVALID") {
-            errorMsg = "API Key de Gemini inválida o sin permisos (403)";
-            showToast('API Key inválida o bloqueada. Revisa la consola o ingresa una clave correcta.', 'error');
-          } else if (err.message === "RATE_LIMIT_EXCEEDED") {
-            errorMsg = "Límite de cuota de API excedido (429)";
-            showToast('Límite de solicitudes de API de Gemini superado (Demasiadas peticiones).', 'error');
+            showToast('API Key incorrecta o denegada.', 'error');
+          } else if (err.message === "TypeError" && aiProvider === 'anthropic') {
+            showToast('Error de CORS directo en Anthropic. Usa OpenRouter para conectar con Claude de manera segura.', 'error');
+            addLog('ERR', "Llamada directa bloqueada por CORS del navegador para Anthropic. Se recomienda OpenRouter.");
           } else {
-            showToast('No se pudo completar la búsqueda por IA. Inténtalo más tarde.', 'error');
+            showToast('Problema al conectar con la IA. Se recomienda revisar la consola del navegador.', 'error');
           }
-          addLog('ERR', `Error de búsqueda de aeropuertos: ${errorMsg}.`);
+          addLog('ERR', `Fallo de consulta AI: ${errorMsg}`);
         } finally {
           setSearching(false);
         }
@@ -503,16 +624,13 @@
         const cleanDestination = sanitizeInput(destination.code);
 
         if (isRoundTrip && new Date(returnDate) < new Date(departureDate)) {
-          addLog('ERR', 'Fallo de Validación: La fecha de regreso es anterior a la fecha de salida.');
           showToast('La fecha de regreso no puede ser anterior a la de salida.', 'error');
           setLoading(false);
           return;
         }
 
-        addLog('SEC', `Auditando parámetros: Origen=${cleanOrigin}, Destino=${cleanDestination}, Ida=${departureDate}, Regreso=${isRoundTrip ? returnDate : 'N/A'}, Pasajeros=${passengers}, EquipajeMano=${hasHandLuggage ? 'Sí' : 'No'}`);
-
         if (!cleanOrigin || !cleanDestination) {
-          showToast('Por favor, selecciona aeropuertos válidos.', 'error');
+          showToast('Por favor, selecciona aeropuertos de origen y destino válidos.', 'error');
           setLoading(false);
           return;
         }
@@ -525,58 +643,41 @@
 
         if (useAI) {
           if (!apiKey) {
-            addLog('WRN', 'API Key ausente. Activando failover determinista local instantáneo.');
-            showToast('Búsqueda local activada. Ingresa tu API Key en el panel izquierdo para usar IA real.', 'info');
+            addLog('WRN', 'API Key ausente. Activando failover determinista local.');
+            showToast('Búsqueda local activada. Registra una clave en la barra lateral para utilizar IA.', 'info');
             executeDeterministicFallback(cleanOrigin, cleanDestination);
             setLoading(false);
             return;
           }
 
-          addLog('AI', 'Consultando tarifas aéreas directas en tiempo real con Google Search...');
+          addLog('AI', `Iniciando consulta de vuelos reales vía ${aiProvider.toUpperCase()}...`);
           
-          const prompt = `Find actual commercial flight options from ${cleanOrigin} to ${cleanDestination}. 
+          const systemPrompt = "Act strictly as a real-time flight ticketing data structure parser. Return raw JSON arrays only.";
+          const prompt = `Find active commercial flights serving route ${cleanOrigin} to ${cleanDestination}. 
           Details:
-          - Departure Date: ${departureDate}
-          ${isRoundTrip ? `- Return Date: ${returnDate} (This is a Round-trip flight)` : '- One-way flight only'}
-          - Number of Passengers: ${passengers} (Ensure total prices calculated reflect ${passengers} passenger tickets)
-          - Hand Luggage (Carry-on): ${hasHandLuggage ? 'Included in fare' : 'Basic economy fare, no carry-on included (personal item only)'}
-          - Maximum total price budget for all passengers: ${budget} USD.
+          - Outbound: ${departureDate}
+          ${isRoundTrip ? `- Return: ${returnDate}` : '- One Way'}
+          - Passengers: ${passengers}
+          - Carry-on Luggage: ${hasHandLuggage ? 'Included' : 'Basic econ, personal item only'}
+          - Total Group Budget limit: ${budget} USD
 
-          You MUST return a clean JSON array representing active airlines currently serving this route on these dates.
-          Return EXACTLY this JSON structure without any markdown wrappers or backticks:
+          Return EXACTLY this JSON structure, completely pure without markdown blocks:
           [
             {
-              "airline": "Name of Airline",
-              "flightNumber": "Outbound Flight designation",
-              "returnFlightNumber": "Return Flight designation or null",
-              "price": 620, 
-              "durationOutbound": "10h 30m",
-              "durationInbound": "10h 45m or null",
+              "airline": "Airline Name",
+              "flightNumber": "Outbound Flight Code",
+              "returnFlightNumber": "Return Flight Code or null",
+              "price": 650, 
+              "durationOutbound": "11h 20m",
+              "durationInbound": "11h 05m or null",
               "stops": 0,
-              "bookingLink": "Direct URL to booking page or airline homepage"
+              "bookingLink": "Direct ticketing website URL"
             }
           ]`;
 
           try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-            const payload = {
-              contents: [{ parts: [{ text: prompt }] }],
-              tools: [{ "google_search": {} }],
-              systemInstruction: {
-                parts: [{ text: "Act as an ultra-high speed travel agency parser. Return strictly pure JSON arrays with no markdown formatting. Ensure prices are realistic and bookingLinks point to valid sites." }]
-              }
-            };
-
-            const response = await fetchWithBackoff(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-
-            const data = await response.json();
-            const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            const cleanedJsonText = textResponse.replace(/```json|```/gi, '').trim();
-            const parsedFlights = JSON.parse(cleanedJsonText);
+            const rawText = await runAiCompletion(prompt, systemPrompt, true);
+            const parsedFlights = extractJsonFromText(rawText);
             
             if (Array.isArray(parsedFlights) && parsedFlights.length > 0) {
               const structuralFlights = parsedFlights.map(f => ({
@@ -584,28 +685,17 @@
                 bookingLink: f.bookingLink && f.bookingLink.startsWith('http') ? f.bookingLink : generateDeepLink(cleanOrigin, cleanDestination, departureDate, isRoundTrip ? returnDate : '', f.airline, isRoundTrip, passengers)
               }));
               setFlights(structuralFlights);
-              addLog('SYS', `Búsqueda IA completada. Encontrados ${structuralFlights.length} boletos.`);
+              addLog('SYS', `Búsqueda IA completada. ${structuralFlights.length} boletos válidos mapeados.`);
               setApiUsage(prev => ({ ...prev, used: prev.used + 1 }));
             } else {
-              throw new Error('Formato JSON incorrecto');
+              throw new Error('JSON_FALSIFICADO');
             }
-
           } catch (err) {
-            let errorMsg = err.message;
-            if (err.message === "API_KEY_INVALID") {
-              errorMsg = "API Key incorrecta (403)";
-              showToast('La API Key ingresada no es válida. Cambiando a búsqueda offline.', 'warning');
-            } else if (err.message === "RATE_LIMIT_EXCEEDED") {
-              errorMsg = "Cuota excedida (429)";
-              showToast('Límite de solicitudes Gemini superado. Cambiando a búsqueda offline.', 'warning');
-            } else {
-              showToast('Error al conectar con la IA de Gemini. Usando motor local.', 'warning');
-            }
-            addLog('WRN', `Activando failover determinista de vuelos por error de red/cuota: ${errorMsg}`);
+            addLog('WRN', `Fallo al procesar vuelos vía IA (${err.message}). Activando motor determinista local de reserva.`);
             executeDeterministicFallback(cleanOrigin, cleanDestination);
           }
         } else {
-          addLog('SYS', 'Modo Local determinista activado.');
+          addLog('SYS', 'Modo local sin IA activo.');
           executeDeterministicFallback(cleanOrigin, cleanDestination);
         }
         setLoading(false);
@@ -613,14 +703,14 @@
 
       const executeDeterministicFallback = (from, to) => {
         const mockAirlines = [
-          { name: 'Iberia', code: 'IB', basePrice: 620, durationOutbound: '11h 15m', durationInbound: '11h 05m', stops: 0 },
-          { name: 'Aeroméxico', code: 'AM', basePrice: 710, durationOutbound: '11h 20m', durationInbound: '11h 10m', stops: 0 },
-          { name: 'Lufthansa', code: 'LH', basePrice: 850, durationOutbound: '14h 45m', durationInbound: '14h 20m', stops: 1 },
-          { name: 'United Airlines', code: 'UA', basePrice: 510, durationOutbound: '15h 10m', durationInbound: '15h 30m', stops: 1 }
+          { name: 'Iberia', code: 'IB', basePrice: 580, durationOutbound: '11h 15m', durationInbound: '11h 05m', stops: 0 },
+          { name: 'Aeroméxico', code: 'AM', basePrice: 650, durationOutbound: '11h 20m', durationInbound: '11h 10m', stops: 0 },
+          { name: 'Lufthansa', code: 'LH', basePrice: 820, durationOutbound: '14h 45m', durationInbound: '14h 20m', stops: 1 },
+          { name: 'United Airlines', code: 'UA', basePrice: 490, durationOutbound: '15h 10m', durationInbound: '15h 30m', stops: 1 }
         ];
 
         const results = mockAirlines.map((airline, idx) => {
-          const variance = Math.sin(idx + 1) * 80;
+          const variance = Math.sin(idx + 1) * 75;
           let calculatedPrice = airline.basePrice + variance;
           
           calculatedPrice = calculatedPrice * passengers;
@@ -648,122 +738,124 @@
         }).filter(f => f.price <= budget);
 
         setFlights(results);
-        addLog('SYS', `Failover completado. Encontradas ${results.length} opciones adaptadas para ${passengers} pasajero(s).`);
+        addLog('SYS', `Failover local completado para ${passengers} pasajero(s).`);
       };
 
       const handleGenerateTTS = async (flight) => {
-        if (!apiKey) {
-          showToast('Ingresa tu Gemini API Key en el menú izquierdo para generar audioguías de voz.', 'warning');
-          return;
-        }
+        const luggageText = hasHandLuggage ? 'con equipaje de mano incluido' : 'sin equipaje de mano (únicamente artículo personal)';
+        const tripText = isRoundTrip ? `un viaje redondo de ida y vuelta regresando el ${returnDate}` : 'un viaje de solo ida';
+        const spokenText = `¡Excelente oferta encontrada! Vuela de ${origin.city} a ${destination.city} operado por ${flight.airline}. Este es ${tripText} para ${passengers} pasajero, ${luggageText}. Tu presupuesto final reservado es de ${flight.price} dólares. ¡Una gran opción de compra directa!`;
 
-        setAudioLoading(true);
-        if (audioUrl) {
-          URL.revokeObjectURL(audioUrl);
-          setAudioUrl(null);
-        }
-        addLog('AI', `Invocando modelo gemini-2.5-flash-preview-tts para audio de vuelo...`);
+        // Si se usa Gemini y hay API Key, usamos TTS avanzado de Google
+        if (aiProvider === 'gemini' && apiKey) {
+          setAudioLoading(true);
+          if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+            setAudioUrl(null);
+          }
+          addLog('AI', `Llamando al sintetizador de voz neuronal de Gemini (gemini-2.5-flash-preview-tts)...`);
 
-        const luggageText = hasHandLuggage ? 'with carry-on luggage included' : 'without hand luggage (personal item only)';
-        const tripText = isRoundTrip ? `round-trip journey returning on ${returnDate}` : 'one-way flight';
-        const spokenText = `Say cheerfully in a lively travel guide voice: Outstanding deal found! Fly from ${origin.city} to ${destination.city} with ${flight.airline}. This is a ${tripText} for ${passengers} traveler, ${luggageText}. Your total budget friendly price is ${flight.price} dollars. Excellent choice!`;
-
-        const payload = {
-          contents: [{ parts: [{ text: spokenText }] }],
-          generationConfig: {
-            responseModalities: ["AUDIO"],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: voiceSelected }
+          const payload = {
+            contents: [{ parts: [{ text: spokenText }] }],
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: voiceSelected }
+                }
               }
             }
+          };
+
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+            const response = await fetchWithBackoff(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+            const part = result?.candidates?.[0]?.content?.parts?.[0];
+            const rawAudio = part?.inlineData?.data;
+            const mimeType = part?.inlineData?.mimeType;
+
+            if (rawAudio && mimeType && mimeType.startsWith("audio/")) {
+              const rateMatch = mimeType.match(/rate=(\d+)/);
+              const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+              
+              const pcmData = base64ToArrayBuffer(rawAudio);
+              const pcm16 = new Int16Array(pcmData);
+              const wavBlob = pcmToWav(pcm16, sampleRate);
+              const urlObj = URL.createObjectURL(wavBlob);
+              
+              setAudioUrl(urlObj);
+              addLog('SYS', `Audio neural de Gemini generado a ${sampleRate}Hz.`);
+              showToast('Audioguía de vuelo lista.', 'success');
+            } else {
+              throw new Error("No se pudo estructurar el PCM.");
+            }
+          } catch (err) {
+            addLog('WRN', `TTS de Gemini no disponible. Conmutando a la Web Speech API nativa del navegador.`);
+            speakLocalSpeech(spokenText);
+          } finally {
+            setAudioLoading(false);
           }
-        };
+        } else {
+          // Fallback para OpenRouter / Anthropic sin dependencias
+          speakLocalSpeech(spokenText);
+        }
+      };
 
-        try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
-          const response = await fetchWithBackoff(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          const result = await response.json();
-          const part = result?.candidates?.[0]?.content?.parts?.[0];
-          const rawAudio = part?.inlineData?.data;
-          const mimeType = part?.inlineData?.mimeType;
-
-          if (rawAudio && mimeType && mimeType.startsWith("audio/")) {
-            const rateMatch = mimeType.match(/rate=(\d+)/);
-            const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
-            
-            const pcmData = base64ToArrayBuffer(rawAudio);
-            const pcm16 = new Int16Array(pcmData);
-            const wavBlob = pcmToWav(pcm16, sampleRate);
-            const urlObj = URL.createObjectURL(wavBlob);
-            
-            setAudioUrl(urlObj);
-            addLog('SYS', `Audio de IA generado exitosamente. Frecuencia: ${sampleRate}Hz`);
-            showToast('Audioguía de vuelo lista.', 'success');
-          } else {
-            throw new Error("Respuesta de audio vacía o errónea");
-          }
-        } catch (err) {
-          addLog('ERR', `Fallo al generar TTS: ${err.message}.`);
-          showToast('Error al procesar el TTS de Gemini. Revisa que tu clave sea correcta.', 'error');
-        } finally {
-          setAudioLoading(false);
+      const speakLocalSpeech = (text) => {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = 'es-MX';
+          const voices = window.speechSynthesis.getVoices();
+          const esVoice = voices.find(v => v.lang.includes('es') || v.lang.includes('ES'));
+          if (esVoice) utterance.voice = esVoice;
+          utterance.rate = 1.0;
+          window.speechSynthesis.speak(utterance);
+          showToast('Reproduciendo audio local en tu navegador.', 'success');
+          addLog('SYS', 'Audio reproducido mediante la Web Speech API nativa.');
+        } else {
+          showToast('Sintetizador local no soportado en este navegador.', 'warning');
         }
       };
 
       const handleGenerateItinerary = async (flight) => {
         if (!apiKey) {
-          showToast('Por favor, ingresa tu Gemini API Key en el panel izquierdo para generar itinerarios.', 'warning');
+          showToast('Ingresa tu API Key en la barra lateral para planificar itinerarios.', 'warning');
           return;
         }
 
         setItineraryLoading(true);
         setItinerary('');
-        addLog('AI', `Generando itinerario de 3 días para ${destination.city} filtrando clima para ${departureDate}...`);
+        addLog('AI', `Generando itinerario turístico en ${destination.city} con ${aiProvider.toUpperCase()}...`);
 
-        const prompt = `Create a brief and premium 3-day travel itinerary for ${destination.city} (${destination.country}). 
-        Travel specifications:
-        - Outbound date: ${departureDate}
-        ${isRoundTrip ? `- Return date: ${returnDate}` : ''}
-        - Total passengers: ${passengers}
-        - Luggage constraints: ${hasHandLuggage ? 'Light luggage allowed' : 'Extremely light, personal item only'}
-        - Arriving with ${flight.airline}.
+        const systemPrompt = "Eres un guía de viajes internacional de lujo. Genera itinerarios precisos y atractivos en español usando formato Markdown.";
+        const prompt = `Crea un itinerario premium de 3 días para viajar a ${destination.city} (${destination.country}). 
+        Detalles del viaje:
+        - Salida: ${departureDate}
+        - Regreso: ${isRoundTrip ? returnDate : 'N/A'}
+        - Pasajeros: ${passengers}
+        - Maleta: ${hasHandLuggage ? 'Equipaje ligero' : 'Solo un artículo personal pequeño'}
+        - Aerolínea: ${flight.airline}
 
-        Include active tourist hot-spots, verified places to eat, and seasonal warnings for mid-2026. Keep it structured in clean Markdown with H3 headings for Day 1, Day 2, and Day 3. Avoid long intros.`;
+        Escribe de forma directa con títulos Day 1, Day 2 y Day 3. Evita introducciones corporativas extensas.`;
 
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-          const payload = {
-            contents: [{ parts: [{ text: prompt }] }],
-            tools: [{ "google_search": {} }],
-            systemInstruction: {
-              parts: [{ text: "Eres un conserje de viajes de lujo. Genera itinerarios precisos, basados en hechos reales, estructurados en formato markdown conciso y elegante." }]
-            }
-          };
-
-          const response = await fetchWithBackoff(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await response.json();
-          const outputText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          
-          if (outputText) {
-            setItinerary(outputText);
-            addLog('SYS', `Itinerario de viaje para ${destination.city} aprovisionado correctamente.`);
+          const rawText = await runAiCompletion(prompt, systemPrompt, true);
+          if (rawText) {
+            setItinerary(rawText);
+            addLog('SYS', `Itinerario turístico para ${destination.city} completado.`);
           } else {
-            throw new Error("No se pudo obtener el texto");
+            throw new Error("Respuesta vacía.");
           }
         } catch (err) {
-          addLog('ERR', `Fallo al redactar itinerario por IA: ${err.message}`);
-          setItinerary(`### ⚠️ Fallo al invocar la API de Gemini\n\n**Sugerencia rápida de contingencia para ${destination.city}:**\n- **Día 1:** Explora el centro histórico y museos principales de la ciudad.\n- **Día 2:** Recorrido gastronómico local con opción de ecoturismo urbano.\n- **Día 3:** Tour de souvenirs ligeros (ideal por tus límites de equipaje) y cena icónica.`);
+          addLog('ERR', `Fallo al redactar itinerario: ${err.message}`);
+          setItinerary(`### Plan de Viaje Exprés para ${destination.city}\n\n**Día 1:** Tour a pie por las zonas históricas centrales.\n**Día 2:** Visita gastronómica a mercados locales tradicionales.\n**Día 3:** Compras de souvenirs y tarde libre antes del retorno.`);
         } finally {
           setItineraryLoading(false);
         }
@@ -774,7 +866,7 @@
         if (!chatInput.trim()) return;
 
         if (!apiKey) {
-          showToast('Ingresa tu Gemini API Key en el menú izquierdo para interactuar con el copiloto.', 'warning');
+          showToast('Configura tu API Key en la izquierda para conversar con el copiloto.', 'warning');
           return;
         }
 
@@ -782,47 +874,30 @@
         setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
         setChatInput('');
         setChatLoading(true);
-        addLog('AI', 'Enviando consulta de negociación de tarifas al Copiloto de IA...');
+        addLog('AI', 'Consultando predicciones de tarifas con el copiloto...');
 
-        const prompt = `The user asks: "${userMsg}". 
-        Flight details:
-        - Origin: ${origin.city} (${origin.code})
-        - Destination: ${destination.city} (${destination.code})
-        - Journey dates: Departure ${departureDate}${isRoundTrip ? ` and return ${returnDate}` : ' (One-way)'}
-        - Total passengers: ${passengers}
-        - Hand luggage: ${hasHandLuggage ? 'Carry-on bag included' : 'No carry-on luggage (basic)'}
-        - Budget: ${budget} USD.
-
-        Analyze fare trends, carry-on fees, and advise if they should buy now or wait. Keep response to 2 short paragraphs.`;
+        const systemPrompt = "Act as an expert flight fare predictor and ticket deal analyst. Speak in friendly Spanish.";
+        const prompt = `Analiza la siguiente consulta del usuario: "${userMsg}".
+        Especificaciones de la cotización:
+        - Ruta: ${origin.city} (${origin.code}) a ${destination.city} (${destination.code})
+        - Fechas: Ida ${departureDate}${isRoundTrip ? `, Regreso ${returnDate}` : ' (Solo ida)'}
+        - Pasajeros: ${passengers}
+        - Equipaje: ${hasHandLuggage ? 'De mano incluido' : 'Solo un artículo personal'}
+        - Presupuesto: ${budget} USD.
+        
+        Dale recomendaciones de si es un precio ideal, o si debe aguardar a que las aerolíneas reduzcan tarifas basándote en tendencias de mercado reales de 2026.`;
 
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-          const payload = {
-            contents: [{ parts: [{ text: prompt }] }],
-            tools: [{ "google_search": {} }],
-            systemInstruction: {
-              parts: [{ text: "Act as a flight cost estimator and ticket negotiator. Give smart, data-driven advice based on live queries." }]
-            }
-          };
-
-          const response = await fetchWithBackoff(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await response.json();
-          const answer = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-          if (answer) {
-            setChatMessages(prev => [...prev, { role: 'assistant', text: answer }]);
-            addLog('SYS', 'Análisis del Copiloto tarifario actualizado con éxito.');
+          const rawText = await runAiCompletion(prompt, systemPrompt, true);
+          if (rawText) {
+            setChatMessages(prev => [...prev, { role: 'assistant', text: rawText }]);
+            addLog('SYS', 'Análisis del copiloto actualizado con éxito.');
           } else {
-            throw new Error("Sin respuesta.");
+            throw new Error("Respuesta vacía");
           }
         } catch (err) {
-          addLog('ERR', `Error en chat del copiloto: ${err.message}`);
-          setChatMessages(prev => [...prev, { role: 'assistant', text: "No he podido conectar con el módulo de análisis de tarifas por problemas de autenticación o cuota en tu clave de API." }]);
+          addLog('ERR', `Error de chat: ${err.message}`);
+          setChatMessages(prev => [...prev, { role: 'assistant', text: "Lo siento, ha surgido un inconveniente con los límites de peticiones o de conexión con el modelo en este momento." }]);
         } finally {
           setChatLoading(false);
         }
@@ -847,7 +922,7 @@
                 <Icon name="plane" className="h-6 w-6 text-emerald-400 animate-pulse" />
               </div>
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v2.6</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v2.7</span>
                 <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
                   JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold">Roundtrip Pro</span>
                 </h1>
@@ -906,6 +981,7 @@
             
             <div className="lg:col-span-5 flex flex-col gap-6">
               
+              {/* RLS Selector */}
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
                 <div className="flex items-center justify-between mb-3">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -928,6 +1004,7 @@
                 </select>
               </div>
 
+              {/* Parámetros del Formulario */}
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl"></div>
                 
@@ -937,6 +1014,7 @@
 
                 <form onSubmit={handleFlightSearch} className="flex flex-col gap-4">
                   
+                  {/* Round Trip Toggle */}
                   <div className="bg-slate-950 p-1 rounded-lg border border-slate-800 flex text-xs">
                     <button
                       type="button"
@@ -964,6 +1042,7 @@
                     </button>
                   </div>
 
+                  {/* Origen Input */}
                   <div className="relative" onClick={(e) => e.stopPropagation()}>
                     <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
                       <Icon name="mapPin" className="h-3.5 w-3.5 text-emerald-400" /> Origen (Cualquier Ciudad o Aeropuerto)
@@ -982,7 +1061,7 @@
                         onClick={() => handleGlobalAirportAISearch('origin')}
                         disabled={searchingOrigin}
                         title="Buscar aeropuertos en todo el mundo con IA"
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0 animate-pulse"
                       >
                         {searchingOrigin ? <Icon name="refresh" className="h-3.5 w-3.5 animate-spin" /> : <Icon name="globe" className="h-3.5 w-3.5" />}
                         <span className="text-[10px] font-bold">Global IA</span>
@@ -1016,6 +1095,7 @@
                     )}
                   </div>
 
+                  {/* Destino Input */}
                   <div className="relative" onClick={(e) => e.stopPropagation()}>
                     <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
                       <Icon name="mapPin" className="h-3.5 w-3.5 text-rose-400" /> Destino (Cualquier Ciudad o Aeropuerto)
@@ -1034,7 +1114,7 @@
                         onClick={() => handleGlobalAirportAISearch('destination')}
                         disabled={searchingDestination}
                         title="Buscar aeropuertos en todo el mundo con IA"
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0 animate-pulse"
                       >
                         {searchingDestination ? <Icon name="refresh" className="h-3.5 w-3.5 animate-spin" /> : <Icon name="globe" className="h-3.5 w-3.5" />}
                         <span className="text-[10px] font-bold">Global IA</span>
@@ -1046,7 +1126,7 @@
                         {searchingDestination ? (
                           <div className="p-3 text-xs text-slate-400 flex items-center gap-2">
                             <Icon name="refresh" className="h-3 w-3 animate-spin text-emerald-400" />
-                            Buscando aeropuertos globales mediante IA...
+                            Buscando aeropuertos globales...
                           </div>
                         ) : (
                           destinationSuggestions.map((ap) => (
@@ -1068,6 +1148,7 @@
                     )}
                   </div>
 
+                  {/* Calendarios */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
@@ -1078,7 +1159,7 @@
                         value={departureDate} 
                         onChange={(e) => {
                           setDepartureDate(e.target.value);
-                          addLog('SYS', `Nueva fecha de salida fijada: ${e.target.value}`);
+                          addLog('SYS', `Nueva fecha de salida: ${e.target.value}`);
                         }}
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
                       />
@@ -1093,7 +1174,7 @@
                         disabled={!isRoundTrip}
                         onChange={(e) => {
                           setReturnDate(e.target.value);
-                          addLog('SYS', `Nueva fecha de regreso fijada: ${e.target.value}`);
+                          addLog('SYS', `Nueva fecha de regreso: ${e.target.value}`);
                         }}
                         className={`w-full bg-slate-950 border rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white ${
                           isRoundTrip ? 'border-slate-800 opacity-100' : 'border-slate-900 opacity-40 cursor-not-allowed'
@@ -1102,6 +1183,7 @@
                     </div>
                   </div>
 
+                  {/* Pasajeros y Presupuesto */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
@@ -1111,7 +1193,7 @@
                         value={passengers}
                         onChange={(e) => {
                           setPassengers(Number(e.target.value));
-                          addLog('SYS', `Cantidad de pasajeros actualizada a: ${e.target.value}`);
+                          addLog('SYS', `Pasajeros actualizados: ${e.target.value}`);
                         }}
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
                       >
@@ -1136,6 +1218,7 @@
                     </div>
                   </div>
 
+                  {/* Equipaje de mano */}
                   <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 bg-indigo-500/10 rounded border border-indigo-500/20">
@@ -1160,10 +1243,11 @@
                     </label>
                   </div>
 
+                  {/* Módulo Multiproveedor de Inteligencia Artificial */}
                   <div className="bg-slate-950 p-3 rounded-lg border border-slate-800/80 mt-1">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-2 border-b border-slate-800 pb-2">
                       <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
-                        <Icon name="sparkles" className="h-3.5 w-3.5 text-emerald-400" /> Búsqueda por IA Activa
+                        <Icon name="sparkles" className="h-3.5 w-3.5 text-emerald-400" /> Copiloto de IA Activo
                       </span>
                       <input 
                         type="checkbox" 
@@ -1174,17 +1258,60 @@
                     </div>
                     
                     {useAI && (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
+                        {/* Selector de Proveedor */}
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                            Proveedor de IA
+                          </label>
+                          <select
+                            value={aiProvider}
+                            onChange={(e) => {
+                              setAiProvider(e.target.value);
+                              setApiKey('');
+                              addLog('SYS', `Proveedor de IA cambiado a: ${e.target.value.toUpperCase()}`);
+                            }}
+                            className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none focus:border-indigo-500"
+                          >
+                            <option value="gemini">Google Gemini (Directo)</option>
+                            <option value="openrouter">OpenRouter (Claude 3.5 / Llama 3 / GPT-4)</option>
+                            <option value="anthropic">Anthropic Claude (Nativo CORS-danger)</option>
+                          </select>
+                        </div>
+
+                        {/* Selector de modelo solo si es OpenRouter */}
+                        {aiProvider === 'openrouter' && (
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                              Modelo (OpenRouter)
+                            </label>
+                            <select
+                              value={openRouterModel}
+                              onChange={(e) => setOpenRouterModel(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none"
+                            >
+                              <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet (Recomendado)</option>
+                              <option value="meta-llama/llama-3.1-70b-instruct">Llama 3.1 70B</option>
+                              <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
+                              <option value="openai/gpt-4o">GPT-4o</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Input de API Key Dinámica */}
                         <div>
                           <label className="block text-[10px] font-mono text-slate-400 mb-1 flex items-center justify-between">
-                            <span>Gemini API Key</span>
-                            <span className="text-[9px] text-emerald-500 font-bold">Recomendado</span>
+                            <span>API Key ({aiProvider.toUpperCase()})</span>
+                            <span className="text-[9px] text-emerald-500 font-bold">Obligatorio</span>
                           </label>
                           <div className="relative">
                             <Icon name="key" className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-600" />
                             <input 
                               type="password" 
-                              placeholder="Ingresa clave Gemini para Búsqueda Global" 
+                              placeholder={
+                                aiProvider === 'gemini' ? "AIzaSy..." :
+                                aiProvider === 'openrouter' ? "sk-or-v1-..." : "sk-ant-..."
+                              }
                               value={apiKey} 
                               onChange={(e) => setApiKey(e.target.value)}
                               className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 pl-8 pr-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-slate-400"
@@ -1192,20 +1319,47 @@
                           </div>
                         </div>
 
-                        <div>
-                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">
-                            Voz del Guía Turístico (TTS)
-                          </label>
-                          <select
-                            value={voiceSelected}
-                            onChange={(e) => setVoiceSelected(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none"
-                          >
-                            {PREBUILT_VOICES.map(v => (
-                              <option key={v.id} value={v.id}>{v.name}</option>
-                            ))}
-                          </select>
-                        </div>
+                        {/* Controles avanzados para Gemini (Grounding / TTS) */}
+                        {aiProvider === 'gemini' && (
+                          <div className="space-y-2 border-t border-slate-900 pt-2 mt-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                <Icon name="globe" className="h-3 w-3" /> Habilitar Google Grounding
+                              </span>
+                              <input 
+                                type="checkbox" 
+                                checked={useGrounding} 
+                                onChange={(e) => setUseGrounding(e.target.checked)}
+                                className="rounded text-indigo-500 bg-slate-900 border-slate-800"
+                              />
+                            </div>
+                            <span className="text-[9px] text-slate-500 block leading-tight">
+                              Nota: Si usas una clave gratuita de Gemini, mantén esta opción desactivada para evitar errores HTTP 400.
+                            </span>
+
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                                Voz del Guía Turístico (TTS)
+                              </label>
+                              <select
+                                value={voiceSelected}
+                                onChange={(e) => setVoiceSelected(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none"
+                              >
+                                {PREBUILT_VOICES.map(v => (
+                                  <option key={v.id} value={v.id}>{v.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
+                        {aiProvider === 'anthropic' && (
+                          <div className="p-2 bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded text-[9px] leading-tight">
+                            ⚠️ <strong>Advertencia:</strong> Las peticiones directas de Anthropic desde el navegador suelen bloquearse por CORS. Te sugerimos usar <strong>OpenRouter</strong> con Claude 3.5 Sonnet para un flujo client-side seguro.
+                          </div>
+                        )}
+
                       </div>
                     )}
                   </div>
@@ -1217,7 +1371,7 @@
                   >
                     {loading ? (
                       <>
-                        <Icon name="refresh" className="h-4 w-4 animate-spin" /> Buscando ofertas reales...
+                        <Icon name="refresh" className="h-4 w-4 animate-spin" /> Buscando ofertas en vivo...
                       </>
                     ) : (
                       <>
@@ -1228,6 +1382,7 @@
                 </form>
               </div>
 
+              {/* FinOps */}
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl text-xs">
                 <h3 className="font-bold text-white mb-2 flex items-center gap-1">
                   <Icon name="trendingUp" className="h-3.5 w-3.5 text-emerald-400" /> FinOps Metrics & API Usage
@@ -1264,11 +1419,12 @@
               {activeTab === 'search' && (
                 <div className="flex flex-col gap-6 flex-1">
                   
+                  {/* Lista de Vuelos */}
                   <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col">
                     <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
                       <div>
                         <h2 className="text-md font-bold text-white flex items-center gap-1.5">
-                          <Icon name="plane" className="h-4.5 w-4.5 text-emerald-400" /> Tarifas & Enlaces de Compra Directa
+                          <Icon name="plane" className="h-4.5 w-4.5 text-emerald-400" /> Enlaces de Compra Directa de Boletos
                         </h2>
                         <p className="text-[11px] text-slate-400 mt-0.5">
                           Vuelos desde {origin.city} hacia {destination.city} ({isRoundTrip ? 'Ida y Vuelta' : 'Solo Ida'}, {passengers} pax)
@@ -1415,9 +1571,9 @@
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col justify-between">
                       <div>
                         <h3 className="text-xs font-bold text-white flex items-center gap-1.5 mb-2">
-                          <Icon name="volume" className="h-4 w-4 text-emerald-400" /> Audioguía de Viaje (IA)
+                          <Icon name="volume" className="h-4 w-4 text-emerald-400" /> Narración Audioguía (IA)
                         </h3>
-                        <p className="text-[11px] text-slate-400 mb-3">Explicación por síntesis de voz Gemini de tu tarifa, fechas y equipaje de mano.</p>
+                        <p className="text-[11px] text-slate-400 mb-3">Escucha un resumen de tarifas, equipaje y políticas de viaje con el sintetizador integrado.</p>
                       </div>
                       
                       {audioUrl ? (
@@ -1426,7 +1582,7 @@
                         </div>
                       ) : (
                         <div className="text-center p-3 text-[10px] text-slate-500 border border-dashed border-slate-800 rounded-lg">
-                          Haz clic en el icono de bocina de tu vuelo preferido para generar audio explicativo.
+                          Presiona el icono de bocina de un vuelo para escuchar su análisis de precios.
                         </div>
                       )}
                     </div>
@@ -1451,12 +1607,12 @@
                         {!selectedFlight ? (
                           <div className="text-center py-4 text-slate-500 text-[10px]">
                             <Icon name="info" className="h-4 w-4 mx-auto mb-1 text-slate-600" />
-                            Selecciona un boleto arriba para habilitar la guía local con IA para {destination.city}.
+                            Selecciona un vuelo arriba para habilitar la planificación turística.
                           </div>
                         ) : itineraryLoading ? (
                           <div className="flex flex-col items-center justify-center py-4 text-center text-[10px] text-slate-400">
                             <Icon name="refresh" className="h-5 w-5 animate-spin text-indigo-400 mb-1.5" />
-                            <span>Consultando clima en tiempo real para {departureDate}...</span>
+                            <span>Consultando atracciones abiertas para {departureDate}...</span>
                           </div>
                         ) : itinerary ? (
                           <div className="bg-slate-950 p-3 rounded-lg border border-slate-850 max-h-[140px] overflow-y-auto text-[10px] text-slate-300 whitespace-pre-line leading-relaxed font-sans">
@@ -1472,9 +1628,10 @@
 
                   </div>
 
+                  {/* Chat Copiloto */}
                   <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                      <Icon name="message" className="h-3.5 w-3.5 text-indigo-400" /> Copiloto de Negociación Tarifaria (Live Grounding)
+                      <Icon name="message" className="h-3.5 w-3.5 text-indigo-400" /> Copiloto Tarifario Inteligente
                     </h4>
                     
                     <div className="bg-slate-950 rounded-lg border border-slate-850 p-2.5 h-36 overflow-y-auto text-[11px] space-y-2 mb-2 pr-1">
@@ -1486,7 +1643,7 @@
                       ))}
                       {chatLoading && (
                         <div className="text-slate-500 italic text-[10px] flex items-center gap-1">
-                          <Icon name="refresh" className="h-3 w-3 animate-spin" /> Analizando fluctuaciones de tarifas aéreas...
+                          <Icon name="refresh" className="h-3 w-3 animate-spin" /> Analizando fluctuaciones tarifarias en tiempo real...
                         </div>
                       )}
                     </div>
@@ -1496,7 +1653,7 @@
                         type="text" 
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
-                        placeholder={`¿Conviene reservar de ${origin.code} a ${destination.code} para ${passengers} pax ${hasHandLuggage ? 'con maleta' : 'sin equipaje'}?`} 
+                        placeholder={`¿Es un buen momento para comprar hacia ${destination.code}?`} 
                         className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-sans"
                       />
                       <button 
