@@ -1,1504 +1,1636 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Plane, Search, Shield, DollarSign, Activity, Lock, 
-  RefreshCw, ExternalLink, Settings, TrendingUp, Users, 
-  CheckCircle, AlertTriangle, Key, ArrowRight, Database, 
-  HelpCircle, Sparkles, Terminal, Globe, Calendar, Briefcase,
-  Volume2, VolumeX, MessageSquare, Compass, Play, Pause, Landmark, Info, MapPin,
-  Luggage, ArrowLeftRight
-} from 'lucide-react';
-
-const AIRPORTS = [
-  // Américas
-  { code: 'JFK', city: 'Nueva York', name: 'John F. Kennedy Intl', country: 'Estados Unidos' },
-  { code: 'LAX', city: 'Los Ángeles', name: 'Los Angeles Intl', country: 'Estados Unidos' },
-  { code: 'MIA', city: 'Miami', name: 'Miami Intl', country: 'Estados Unidos' },
-  { code: 'DFW', city: 'Dallas', name: 'Dallas/Fort Worth Intl', country: 'Estados Unidos' },
-  { code: 'MEX', city: 'Ciudad de México', name: 'Benito Juárez Intl', country: 'México' },
-  { code: 'CUN', city: 'Cancún', name: 'Cancún Intl', country: 'México' },
-  { code: 'MID', city: 'Mérida', name: 'Manuel Crescencio Rejón Intl', country: 'México' },
-  { code: 'BOG', city: 'Bogotá', name: 'El Dorado Intl', country: 'Colombia' },
-  { code: 'EZE', city: 'Buenos Aires', name: 'Ministro Pistarini', country: 'Argentina' },
-  { code: 'GRU', city: 'São Paulo', name: 'Guarulhos Intl', country: 'Brasil' },
-  { code: 'SCL', city: 'Santiago', name: 'Arturo Merino Benítez', country: 'Chile' },
-  { code: 'LIM', city: 'Lima', name: 'Jorge Chávez Intl', country: 'Perú' },
-  { code: 'YYZ', city: 'Toronto', name: 'Pearson Intl', country: 'Canadá' },
-  // Europa
-  { code: 'MAD', city: 'Madrid', name: 'Adolfo Suárez Barajas', country: 'España' },
-  { code: 'BCN', city: 'Barcelona', name: 'El Prat Airport', country: 'España' },
-  { code: 'LHR', city: 'Londres', name: 'Heathrow Airport', country: 'Reino Unido' },
-  { code: 'CDG', city: 'París', name: 'Charles de Gaulle', country: 'Francia' },
-  { code: 'FRA', city: 'Fráncfort', name: 'Frankfurt Airport', country: 'Alemania' },
-  { code: 'AMS', city: 'Ámsterdam', name: 'Schiphol Airport', country: 'Países Bajos' },
-  { code: 'FCO', city: 'Roma', name: 'Fiumicino Leonardo da Vinci', country: 'Italia' },
-  { code: 'IST', city: 'Estambul', name: 'Istanbul Airport', country: 'Turquía' },
-  // Asia & Medio Oriente
-  { code: 'DXB', city: 'Dubái', name: 'Dubai Intl', country: 'Emiratos Árabes' },
-  { code: 'SIN', city: 'Singapur', name: 'Changi Airport', country: 'Singapur' },
-  { code: 'NRT', city: 'Tokio', name: 'Narita Intl', country: 'Japón' },
-  { code: 'HND', city: 'Tokio', name: 'Haneda Airport', country: 'Japón' },
-  { code: 'HKG', city: 'Hong Kong', name: 'Hong Kong Intl', country: 'Hong Kong' },
-  { code: 'PEK', city: 'Pekín', name: 'Capital Intl', country: 'China' },
-  { code: 'ICN', city: 'Seúl', name: 'Incheon Intl', country: 'Corea del Sur' },
-  { code: 'DOH', city: 'Doha', name: 'Hamad Intl', country: 'Catar' },
-  // Oceanía & África
-  { code: 'SYD', city: 'Sídney', name: 'Kingsford Smith', country: 'Australia' },
-  { code: 'JNB', city: 'Johannesburgo', name: 'O.R. Tambo Intl', country: 'Sudáfrica' },
-  { code: 'CAI', city: 'Cairo', name: 'Cairo Intl', country: 'Egipto' }
-];
-
-const PREBUILT_VOICES = [
-  { id: 'Zephyr', name: 'Zephyr (Bright)', description: 'Voz alegre y brillante ideal para turismo' },
-  { id: 'Puck', name: 'Puck (Upbeat)', description: 'Estilo optimista y dinámico' },
-  { id: 'Charon', name: 'Charon (Informative)', description: 'Tono corporativo y profesional' },
-  { id: 'Callirrhoe', name: 'Callirrhoe (Easy-going)', description: 'Tono relajado y natural' }
-];
-
-function base64ToArrayBuffer(base64) {
-  const binaryString = window.atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
-}
-
-function writeString(view, offset, string) {
-  for (let i = 0; i < string.length; i++) {
-    view.setUint8(offset + i, string.charCodeAt(i));
-  }
-}
-
-function pcmToWav(pcm16Array, sampleRate) {
-  const buffer = new ArrayBuffer(44 + pcm16Array.length * 2);
-  const view = new DataView(buffer);
+<!DOCTYPE html> 
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JetSaaS - Sovereign Flight Engine</title>
   
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + pcm16Array.length * 2, true);
-  writeString(view, 8, 'WAVE');
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // Linear PCM
-  view.setUint16(22, 1, true); // Mono channel
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true); // Byte rate
-  view.setUint16(32, 2, true); // Block align
-  view.setUint16(34, 16, true); // 16 bits
-  writeString(view, 36, 'data');
-  view.setUint32(40, pcm16Array.length * 2, true);
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- React 18 & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel Standalone para JSX sobre la marcha -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  let offset = 44;
-  for (let i = 0; i < pcm16Array.length; i++, offset += 2) {
-    view.setInt16(offset, pcm16Array[i], true);
-  }
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Estilos personalizados para Scrollbar Premium */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #020617;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #10b981;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between">
 
-  return new Blob([buffer], { type: 'audio/wav' });
-}
+  <div id="root"></div>
 
-async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
-  try {
-    const response = await fetch(url, options);
-    if (!response.ok) {
-      if (response.status === 429 && retries > 0) {
-        await new Promise(res => setTimeout(res, delay));
-        return fetchWithBackoff(url, options, retries - 1, delay * 2);
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Componente centralizado de Iconos SVG para evitar bloqueos por dependencias externas
+    const Icon = ({ name, className = "h-5 w-5", ...props }) => {
+      const icons = {
+        plane: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+          </svg>
+        ),
+        search: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.637 10.637z" />
+          </svg>
+        ),
+        shield: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-13.32 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+          </svg>
+        ),
+        dollar: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.22.13C10.311 16.032 11.135 16.5 12 16.5c2.485 0 4.5-2.015 4.5-4.5S14.485 7.5 12 7.5c-.865 0-1.689.468-2.28 1.188L9.5 9" />
+          </svg>
+        ),
+        activity: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+          </svg>
+        ),
+        lock: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+          </svg>
+        ),
+        refresh: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+          </svg>
+        ),
+        external: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+          </svg>
+        ),
+        trendingUp: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.281m5.94 2.28-2.28 5.941" />
+          </svg>
+        ),
+        users: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A11.386 11.386 0 0110.089 21c-2.243 0-4.352-.64-6.136-1.753v-.072m0-1.728a4.125 4.125 0 017.533-2.493c.501.91.786 1.957.786 3.07v.003m-10.43-3.14a4.125 4.125 0 000 6.28M12 11.25a3.375 3.375 0 100-6.75 3.375 3.375 0 000 6.75zM21 11.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+          </svg>
+        ),
+        check: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+        warning: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+        ),
+        key: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+          </svg>
+        ),
+        database: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75m-16.5-3.75v3.75" />
+          </svg>
+        ),
+        sparkles: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 21l-.813-5.096L3 15l5.187-.813L9 9l.813 5.187L15 15l-5.187.813zM18 3.75L18 7.5m0 0L21 9m-3-1.5L15 9" />
+          </svg>
+        ),
+        globe: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-.778.099-1.533.284-2.253" />
+          </svg>
+        ),
+        calendar: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+          </svg>
+        ),
+        volume: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+          </svg>
+        ),
+        message: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.678 20.89a9 9 0 0011.95-11.95m0 0A9 9 0 1012.2 20.9l.08.4h.02c.04 0 .08-.01.12-.03l.08-.03a9 9 0 006.18-8.4z" />
+          </svg>
+        ),
+        compass: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+        info: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.063.852l-.708 2.836a.75.75 0 001.063.852l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+          </svg>
+        ),
+        mapPin: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25s-7.5-4.108-7.5-11.25a7.5 7.5 0 1115 0z" />
+          </svg>
+        ),
+        luggage: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5h-1.5V5.25A2.25 2.25 0 0016.5 3h-9A2.25 2.25 0 005.25 5.25V7.5h-1.5A2.25 2.25 0 001.5 9.75v8.25a2.25 2.25 0 002.25 2.25h16.5a2.25 2.25 0 002.25-2.25V9.75a2.25 2.25 0 00-2.25-2.25zM7.5 5.25a.75.75 0 01.75-.75h7.5a.75.75 0 01.75.75V7.5H7.5V5.25z" />
+          </svg>
+        ),
+        arrowLeftRight: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+          </svg>
+        )
+      };
+      return icons[name] || icons['plane'];
+    };
+
+    // Base local para autocompletado rápido
+    const AIRPORTS = [
+      { code: 'JFK', city: 'Nueva York', name: 'John F. Kennedy Intl', country: 'Estados Unidos' },
+      { code: 'LAX', city: 'Los Ángeles', name: 'Los Angeles Intl', country: 'Estados Unidos' },
+      { code: 'MIA', city: 'Miami', name: 'Miami Intl', country: 'Estados Unidos' },
+      { code: 'MEX', city: 'Ciudad de México', name: 'Benito Juárez Intl', country: 'México' },
+      { code: 'CUN', city: 'Cancún', name: 'Cancún Intl', country: 'México' },
+      { code: 'MID', city: 'Mérida', name: 'Manuel Crescencio Rejón Intl', country: 'México' },
+      { code: 'BOG', city: 'Bogotá', name: 'El Dorado Intl', country: 'Colombia' },
+      { code: 'EZE', city: 'Buenos Aires', name: 'Ministro Pistarini', country: 'Argentina' },
+      { code: 'GRU', city: 'São Paulo', name: 'Guarulhos Intl', country: 'Brasil' },
+      { code: 'SCL', city: 'Santiago', name: 'Arturo Merino Benítez', country: 'Chile' },
+      { code: 'LIM', city: 'Lima', name: 'Jorge Chávez Intl', country: 'Perú' },
+      { code: 'MAD', city: 'Madrid', name: 'Adolfo Suárez Barajas', country: 'España' },
+      { code: 'BCN', city: 'Barcelona', name: 'El Prat Airport', country: 'España' },
+      { code: 'LHR', city: 'Londres', name: 'Heathrow Airport', country: 'Reino Unido' },
+      { code: 'CDG', city: 'París', name: 'Charles de Gaulle', country: 'Francia' },
+      { code: 'FRA', city: 'Fráncfort', name: 'Frankfurt Airport', country: 'Alemania' },
+      { code: 'AMS', city: 'Ámsterdam', name: 'Schiphol Airport', country: 'Países Bajos' },
+      { code: 'FCO', city: 'Roma', name: 'Fiumicino Leonardo da Vinci', country: 'Italia' },
+      { code: 'DXB', city: 'Dubái', name: 'Dubai Intl', country: 'Emiratos Árabes' },
+      { code: 'SIN', city: 'Singapur', name: 'Changi Airport', country: 'Singapur' },
+      { code: 'NRT', city: 'Tokio', name: 'Narita Intl', country: 'Japón' },
+      { code: 'SYD', city: 'Sídney', name: 'Kingsford Smith', country: 'Australia' }
+    ];
+
+    const PREBUILT_VOICES = [
+      { id: 'Zephyr', name: 'Zephyr (Bright)', description: 'Voz alegre y brillante ideal para turismo' },
+      { id: 'Puck', name: 'Puck (Upbeat)', description: 'Estilo optimista y dinámico' },
+      { id: 'Charon', name: 'Charon (Informative)', description: 'Tono corporativo y profesional' },
+      { id: 'Callirrhoe', name: 'Callirrhoe (Easy-going)', description: 'Tono relajado y natural' }
+    ];
+
+    function base64ToArrayBuffer(base64) {
+      const binaryString = window.atob(base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
       }
-      throw new Error(`Error HTTP: ${response.status}`);
-    }
-    return response;
-  } catch (err) {
-    if (retries > 0) {
-      await new Promise(res => setTimeout(res, delay));
-      return fetchWithBackoff(url, options, retries - 1, delay * 2);
-    }
-    throw err;
-  }
-}
-
-export default function App() {
-  const [activeTab, setActiveTab] = useState('search');
-  const [tenant, setTenant] = useState('enterprise_corp');
-  
-  // State de Aeropuertos con Autocompletado Global
-  const [origin, setOrigin] = useState({ code: 'MEX', city: 'Ciudad de México', name: 'Benito Juárez Intl', country: 'México' });
-  const [destination, setDestination] = useState({ code: 'MAD', city: 'Madrid', name: 'Adolfo Suárez Barajas', country: 'España' });
-  
-  const [originInput, setOriginInput] = useState('MEX - Ciudad de México');
-  const [destinationInput, setDestinationInput] = useState('MAD - Madrid');
-  
-  const [originSuggestions, setOriginSuggestions] = useState([]);
-  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
-  
-  const [searchingOrigin, setSearchingOrigin] = useState(false);
-  const [searchingDestination, setSearchingDestination] = useState(false);
-  
-  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
-  const [showDestDropdown, setShowDestDropdown] = useState(false);
-
-  // Parámetros Extendidos del Vuelo (Ida, Regreso, Pasajeros, Equipaje de Mano)
-  const [isRoundTrip, setIsRoundTrip] = useState(true);
-  const [departureDate, setDepartureDate] = useState('2026-07-15');
-  const [returnDate, setReturnDate] = useState('2026-07-22');
-  const [passengers, setPassengers] = useState(1);
-  const [hasHandLuggage, setHasHandLuggage] = useState(true);
-
-  const [budget, setBudget] = useState(1500);
-  const [loading, setLoading] = useState(false);
-  const [flights, setFlights] = useState([]);
-  const [useAI, setUseAI] = useState(true);
-  const [apiKey, setApiKey] = useState('');
-  
-  // State de alertas y modales
-  const [alertMsg, setAlertMsg] = useState(null);
-
-  // State del Itinerario Inteligente
-  const [selectedFlight, setSelectedFlight] = useState(null);
-  const [itinerary, setItinerary] = useState('');
-  const [itineraryLoading, setItineraryLoading] = useState(false);
-  
-  // State de Reproducción de Audio
-  const [voiceSelected, setVoiceSelected] = useState('Zephyr');
-  const [audioLoading, setAudioLoading] = useState(false);
-  const [audioUrl, setAudioUrl] = useState(null);
-  const audioRef = useRef(null);
-
-  // State del Copiloto de Tarifas
-  const [chatMessages, setChatMessages] = useState([
-    { role: 'assistant', text: '¡Hola! Soy tu Copiloto de Negociación de Tarifas. ¿Tienes dudas de si comprar ahora o esperar a que bajen los precios para tu ruta con equipaje o de ida y vuelta?' }
-  ]);
-  const [chatInput, setChatInput] = useState('');
-  const [chatLoading, setChatLoading] = useState(false);
-
-  // Consola de Auditoría y Seguridad
-  const [logs, setLogs] = useState([
-    { timestamp: new Date().toLocaleTimeString(), type: 'SEC', message: 'Inicializando aislamiento lógico RLS para Tenant ID: enterprise_corp' },
-    { timestamp: new Date().toLocaleTimeString(), type: 'SYS', message: 'Cargando motor híbrido de aeropuertos globales.' }
-  ]);
-
-  // Métricas SaaS de Simulación
-  const [mrr, setMrr] = useState(15420);
-  const [ebitda, setEbitda] = useState(84.1);
-  const [apiUsage, setApiUsage] = useState({ used: 458, limit: 10000 });
-
-  const addLog = (type, message) => {
-    setLogs(prev => [{ timestamp: new Date().toLocaleTimeString(), type, message }, ...prev].slice(0, 30));
-  };
-
-  const showToast = (message, type = 'info') => {
-    setAlertMsg({ text: message, type });
-    setTimeout(() => setAlertMsg(null), 6000);
-  };
-
-  const sanitizeInput = (val) => {
-    const upper = val.toUpperCase().trim();
-    if (/^[A-Z]{3}$/.test(upper)) {
-      return upper;
-    }
-    return null;
-  };
-
-  const generateDeepLink = (from, to, deptDate, retDate, carrierCode, roundTrip, numPax) => {
-    const formattedDept = deptDate.replace(/-/g, '');
-    const formattedRet = retDate ? retDate.replace(/-/g, '') : '';
-    const carrierClean = carrierCode.toUpperCase();
-    const tripTypeString = roundTrip ? "RoundTrip" : "OneWay";
-
-    if (carrierClean.includes('AM') || carrierClean.includes('AEROMÉXICO')) {
-      return `https://www.aeromexico.com/es-mx/reserva/vuelos?from=${from}&to=${to}&departDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&adults=${numPax}`;
-    } else if (carrierClean.includes('IB') || carrierClean.includes('IBERIA')) {
-      return `https://www.iberia.com/es/comprar-vuelos/?market=ES&origin=${from}&destination=${to}&date=${formattedDept}${roundTrip ? `&returnDate=${formattedRet}` : ''}&adults=${numPax}`;
-    } else if (carrierClean.includes('LH') || carrierClean.includes('LUFTHANSA')) {
-      return `https://www.lufthansa.com/es/es/flights/${from}-${to}?departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&passengers=${numPax}`;
-    } else if (carrierClean.includes('AF') || carrierClean.includes('AIR FRANCE')) {
-      return `https://wwws.airfrance.es/search/offers?bookingFlow=REVENUE&cabinClass=ECONOMY&destination=${to}&origin=${from}&pc=${numPax}&travelDate=${deptDate}`;
-    }
-    
-    // Fallback universal a Google Flights estructurado
-    const paxParam = numPax > 1 ? `${numPax}%20passengers` : '1%20passenger';
-    const datesQuery = roundTrip ? `from%20${deptDate}%20to%20${retDate}` : `on%20${deptDate}`;
-    return `https://www.google.com/travel/flights?q=Flights%20from%20${from}%20to%20${to}%20${datesQuery}%20${paxParam}%20${tripTypeString}`;
-  };
-
-  const handleAirportInputChange = (val, type) => {
-    if (type === 'origin') {
-      setOriginInput(val);
-      setShowOriginDropdown(true);
-      const filtered = AIRPORTS.filter(ap => 
-        ap.code.toLowerCase().includes(val.toLowerCase()) ||
-        ap.city.toLowerCase().includes(val.toLowerCase()) ||
-        ap.name.toLowerCase().includes(val.toLowerCase()) ||
-        ap.country.toLowerCase().includes(val.toLowerCase())
-      ).slice(0, 5);
-      setOriginSuggestions(filtered);
-    } else {
-      setDestinationInput(val);
-      setShowDestDropdown(true);
-      const filtered = AIRPORTS.filter(ap => 
-        ap.code.toLowerCase().includes(val.toLowerCase()) ||
-        ap.city.toLowerCase().includes(val.toLowerCase()) ||
-        ap.name.toLowerCase().includes(val.toLowerCase()) ||
-        ap.country.toLowerCase().includes(val.toLowerCase())
-      ).slice(0, 5);
-      setDestinationSuggestions(filtered);
-    }
-  };
-
-  const handleGlobalAirportAISearch = async (type) => {
-    const query = type === 'origin' ? originInput : destinationInput;
-    if (!query || query.length < 2) {
-      showToast('Por favor, ingresa al menos 2 caracteres para buscar en la base de datos mundial.', 'warning');
-      return;
+      return bytes.buffer;
     }
 
-    const setSearching = type === 'origin' ? setSearchingOrigin : setSearchingDestination;
-    const setSuggestions = type === 'origin' ? setOriginSuggestions : setDestinationSuggestions;
-
-    setSearching(true);
-    addLog('AI', `Buscando aeropuertos globales en tiempo real para: "${query}"`);
-
-    const prompt = `Search for actual airports anywhere in the world matching "${query}". 
-    You MUST return a strictly clean JSON array representing actual commercial airports with correct 3-letter IATA codes.
-    Return EXACTLY this JSON structure and absolutely nothing else (no markdown wrappers, no backticks, no notes):
-    [
-      {
-        "code": "XYZ",
-        "city": "City Name",
-        "name": "Airport Official Name",
-        "country": "Country Name"
+    function writeString(view, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
       }
-    ]
-    If no actual airports exist for that query, return an empty array [].`;
+    }
 
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-      const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: {
-          parts: [{ text: "Act as an ultra-fast global airport directory lookup API. Respond strictly with valid JSON. Double check that IATA codes are real and valid." }]
+    function pcmToWav(pcm16Array, sampleRate) {
+      const buffer = new ArrayBuffer(44 + pcm16Array.length * 2);
+      const view = new DataView(buffer);
+      
+      writeString(view, 0, 'RIFF');
+      view.setUint32(4, 36 + pcm16Array.length * 2, true);
+      writeString(view, 8, 'WAVE');
+      writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); // Linear PCM
+      view.setUint16(22, 1, true); // Mono channel
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true); // Byte rate
+      view.setUint16(32, 2, true); // Block align
+      view.setUint16(34, 16, true); // 16 bits
+      writeString(view, 36, 'data');
+      view.setUint32(40, pcm16Array.length * 2, true);
+
+      let offset = 44;
+      for (let i = 0; i < pcm16Array.length; i++, offset += 2) {
+        view.setInt16(offset, pcm16Array[i], true);
+      }
+
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          if (response.status === 429 && retries > 0) {
+            await new Promise(res => setTimeout(res, delay));
+            return fetchWithBackoff(url, options, retries - 1, delay * 2);
+          }
+          throw new Error(`Error HTTP: ${response.status}`);
+        }
+        return response;
+      } catch (err) {
+        if (retries > 0) {
+          await new Promise(res => setTimeout(res, delay));
+          return fetchWithBackoff(url, options, retries - 1, delay * 2);
+        }
+        throw err;
+      }
+    }
+
+    function App() {
+      const [activeTab, setActiveTab] = useState('search');
+      const [tenant, setTenant] = useState('enterprise_corp');
+      
+      const [origin, setOrigin] = useState({ code: 'MEX', city: 'Ciudad de México', name: 'Benito Juárez Intl', country: 'México' });
+      const [destination, setDestination] = useState({ code: 'MAD', city: 'Madrid', name: 'Adolfo Suárez Barajas', country: 'España' });
+      
+      const [originInput, setOriginInput] = useState('MEX - Ciudad de México');
+      const [destinationInput, setDestinationInput] = useState('MAD - Madrid');
+      
+      const [originSuggestions, setOriginSuggestions] = useState([]);
+      const [destinationSuggestions, setDestinationSuggestions] = useState([]);
+      
+      const [searchingOrigin, setSearchingOrigin] = useState(false);
+      const [searchingDestination, setSearchingDestination] = useState(false);
+      
+      const [showOriginDropdown, setShowOriginDropdown] = useState(false);
+      const [showDestDropdown, setShowDestDropdown] = useState(false);
+
+      const [isRoundTrip, setIsRoundTrip] = useState(true);
+      const [departureDate, setDepartureDate] = useState('2026-07-15');
+      const [returnDate, setReturnDate] = useState('2026-07-22');
+      const [passengers, setPassengers] = useState(1);
+      const [hasHandLuggage, setHasHandLuggage] = useState(true);
+
+      const [budget, setBudget] = useState(1500);
+      const [loading, setLoading] = useState(false);
+      const [flights, setFlights] = useState([]);
+      const [useAI, setUseAI] = useState(true);
+      const [apiKey, setApiKey] = useState('');
+      
+      const [alertMsg, setAlertMsg] = useState(null);
+
+      const [selectedFlight, setSelectedFlight] = useState(null);
+      const [itinerary, setItinerary] = useState('');
+      const [itineraryLoading, setItineraryLoading] = useState(false);
+      
+      const [voiceSelected, setVoiceSelected] = useState('Zephyr');
+      const [audioLoading, setAudioLoading] = useState(false);
+      const [audioUrl, setAudioUrl] = useState(null);
+      const audioRef = useRef(null);
+
+      const [chatMessages, setChatMessages] = useState([
+        { role: 'assistant', text: '¡Hola! Soy tu Copiloto de Negociación de Tarifas. ¿Tienes dudas de si comprar ahora o esperar a que bajen los precios para tu ruta con equipaje o de ida y vuelta?' }
+      ]);
+      const [chatInput, setChatInput] = useState('');
+      const [chatLoading, setChatLoading] = useState(false);
+
+      const [logs, setLogs] = useState([
+        { timestamp: new Date().toLocaleTimeString(), type: 'SEC', message: 'Inicializando aislamiento lógico RLS para Tenant ID: enterprise_corp' },
+        { timestamp: new Date().toLocaleTimeString(), type: 'SYS', message: 'Cargando motor híbrido de aeropuertos globales.' }
+      ]);
+
+      const [mrr] = useState(15420);
+      const [ebitda] = useState(84.1);
+      const [apiUsage, setApiUsage] = useState({ used: 458, limit: 10000 });
+
+      const addLog = (type, message) => {
+        setLogs(prev => [{ timestamp: new Date().toLocaleTimeString(), type, message }, ...prev].slice(0, 30));
+      };
+
+      const showToast = (message, type = 'info') => {
+        setAlertMsg({ text: message, type });
+        setTimeout(() => setAlertMsg(null), 6000);
+      };
+
+      const sanitizeInput = (val) => {
+        const upper = val.toUpperCase().trim();
+        if (/^[A-Z]{3}$/.test(upper)) {
+          return upper;
+        }
+        return null;
+      };
+
+      const generateDeepLink = (from, to, deptDate, retDate, carrierCode, roundTrip, numPax) => {
+        const formattedDept = deptDate.replace(/-/g, '');
+        const formattedRet = retDate ? retDate.replace(/-/g, '') : '';
+        const carrierClean = carrierCode.toUpperCase();
+        const tripTypeString = roundTrip ? "RoundTrip" : "OneWay";
+
+        if (carrierClean.includes('AM') || carrierClean.includes('AEROMÉXICO')) {
+          return `https://www.aeromexico.com/es-mx/reserva/vuelos?from=${from}&to=${to}&departDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&adults=${numPax}`;
+        } else if (carrierClean.includes('IB') || carrierClean.includes('IBERIA')) {
+          return `https://www.iberia.com/es/comprar-vuelos/?market=ES&origin=${from}&destination=${to}&date=${formattedDept}${roundTrip ? `&returnDate=${formattedRet}` : ''}&adults=${numPax}`;
+        } else if (carrierClean.includes('LH') || carrierClean.includes('LUFTHANSA')) {
+          return `https://www.lufthansa.com/es/es/flights/${from}-${to}?departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&passengers=${numPax}`;
+        } else if (carrierClean.includes('AF') || carrierClean.includes('AIR FRANCE')) {
+          return `https://wwws.airfrance.es/search/offers?bookingFlow=REVENUE&cabinClass=ECONOMY&destination=${to}&origin=${from}&pc=${numPax}&travelDate=${deptDate}`;
+        }
+        
+        const paxParam = numPax > 1 ? `${numPax}%20passengers` : '1%20passenger';
+        const datesQuery = roundTrip ? `from%20${deptDate}%20to%20${retDate}` : `on%20${deptDate}`;
+        return `https://www.google.com/travel/flights?q=Flights%20from%20${from}%20to%20${to}%20${datesQuery}%20${paxParam}%20${tripTypeString}`;
+      };
+
+      const handleAirportInputChange = (val, type) => {
+        if (type === 'origin') {
+          setOriginInput(val);
+          setShowOriginDropdown(true);
+          const filtered = AIRPORTS.filter(ap => 
+            ap.code.toLowerCase().includes(val.toLowerCase()) ||
+            ap.city.toLowerCase().includes(val.toLowerCase()) ||
+            ap.name.toLowerCase().includes(val.toLowerCase()) ||
+            ap.country.toLowerCase().includes(val.toLowerCase())
+          ).slice(0, 5);
+          setOriginSuggestions(filtered);
+        } else {
+          setDestinationInput(val);
+          setShowDestDropdown(true);
+          const filtered = AIRPORTS.filter(ap => 
+            ap.code.toLowerCase().includes(val.toLowerCase()) ||
+            ap.city.toLowerCase().includes(val.toLowerCase()) ||
+            ap.name.toLowerCase().includes(val.toLowerCase()) ||
+            ap.country.toLowerCase().includes(val.toLowerCase())
+          ).slice(0, 5);
+          setDestinationSuggestions(filtered);
         }
       };
 
-      const response = await fetchWithBackoff(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-      const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      const cleanedJsonText = textResponse.replace(/```json|```/gi, '').trim();
-      const parsedAirports = JSON.parse(cleanedJsonText);
-      
-      if (Array.isArray(parsedAirports)) {
-        setSuggestions(parsedAirports);
-        addLog('SYS', `Búsqueda global IA completada. ${parsedAirports.length} aeropuertos encontrados.`);
-        if (parsedAirports.length === 0) {
-          showToast('No se encontraron aeropuertos mundiales con esa búsqueda.', 'warning');
+      const handleGlobalAirportAISearch = async (type) => {
+        const query = type === 'origin' ? originInput : destinationInput;
+        if (!query || query.length < 2) {
+          showToast('Por favor, ingresa al menos 2 caracteres para buscar en la base de datos mundial.', 'warning');
+          return;
         }
-      } else {
-        throw new Error('Formato de respuesta incorrecto');
-      }
-    } catch (err) {
-      addLog('ERR', `Error de búsqueda de aeropuertos: ${err.message}.`);
-      showToast('No se pudo completar la búsqueda global de aeropuertos por IA. Utilice la lista local.', 'error');
-    } finally {
-      setSearching(false);
-    }
-  };
 
-  const handleSelectAirport = (airport, type) => {
-    if (type === 'origin') {
-      setOrigin(airport);
-      setOriginInput(`${airport.code} - ${airport.city}`);
-      setShowOriginDropdown(false);
-      addLog('SYS', `Origen fijado: ${airport.code} (${airport.name})`);
-    } else {
-      setDestination(airport);
-      setDestinationInput(`${airport.code} - ${airport.city}`);
-      setShowDestDropdown(false);
-      addLog('SYS', `Destino fijado: ${airport.code} (${airport.name})`);
-    }
-  };
+        const setSearching = type === 'origin' ? setSearchingOrigin : setSearchingDestination;
+        const setSuggestions = type === 'origin' ? setOriginSuggestions : setDestinationSuggestions;
 
-  const handleFlightSearch = async (e) => {
-    if (e) e.preventDefault();
-    setLoading(true);
-    setSelectedFlight(null);
-    setItinerary('');
-    
-    const cleanOrigin = sanitizeInput(origin.code);
-    const cleanDestination = sanitizeInput(destination.code);
+        setSearching(true);
+        addLog('AI', `Buscando aeropuertos globales en tiempo real para: "${query}"`);
 
-    if (isRoundTrip && new Date(returnDate) < new Date(departureDate)) {
-      addLog('ERR', 'Fallo de Validación: La fecha de regreso es anterior a la fecha de salida.');
-      showToast('La fecha de regreso no puede ser anterior a la de salida.', 'error');
-      setLoading(false);
-      return;
-    }
+        const prompt = `Search for actual airports anywhere in the world matching "${query}". 
+        You MUST return a strictly clean JSON array representing actual commercial airports with correct 3-letter IATA codes.
+        Return EXACTLY this JSON structure and absolutely nothing else (no markdown wrappers, no backticks, no notes):
+        [
+          {
+            "code": "XYZ",
+            "city": "City Name",
+            "name": "Airport Official Name",
+            "country": "Country Name"
+          }
+        ]
+        If no actual airports exist for that query, return an empty array [].`;
 
-    addLog('SEC', `Auditando parámetros: Origen=${cleanOrigin}, Destino=${cleanDestination}, Ida=${departureDate}, Regreso=${isRoundTrip ? returnDate : 'N/A'}, Pasajeros=${passengers}, EquipajeMano=${hasHandLuggage ? 'Sí' : 'No'}`);
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+          const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            systemInstruction: {
+              parts: [{ text: "Act as an ultra-fast global airport directory lookup API. Respond strictly with valid JSON. Double check that IATA codes are real and valid." }]
+            }
+          };
 
-    if (!cleanOrigin || !cleanDestination) {
-      showToast('Por favor, selecciona aeropuertos válidos.', 'error');
-      setLoading(false);
-      return;
-    }
+          const response = await fetchWithBackoff(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
 
-    if (cleanOrigin === cleanDestination) {
-      showToast('El origen y el destino no pueden ser el mismo.', 'error');
-      setLoading(false);
-      return;
-    }
-
-    if (useAI) {
-      addLog('AI', 'Consultando tarifas aéreas directas en tiempo real con Google Search...');
-      
-      const prompt = `Find actual commercial flight options from ${cleanOrigin} to ${cleanDestination}. 
-      Details:
-      - Departure Date: ${departureDate}
-      ${isRoundTrip ? `- Return Date: ${returnDate} (This is a Round-trip flight)` : '- One-way flight only'}
-      - Number of Passengers: ${passengers} (Ensure total prices calculated reflect ${passengers} passenger tickets)
-      - Hand Luggage (Carry-on): ${hasHandLuggage ? 'Included in fare' : 'Basic economy fare, no carry-on included (personal item only)'}
-      - Maximum total price budget for all passengers: ${budget} USD.
-
-      You MUST return a clean JSON array representing active airlines currently serving this route on these dates.
-      Return EXACTLY this JSON structure without any markdown wrappers or backticks:
-      [
-        {
-          "airline": "Name of Airline",
-          "flightNumber": "Outbound Flight designation",
-          "returnFlightNumber": "Return Flight designation or null",
-          "price": 620, 
-          "durationOutbound": "10h 30m",
-          "durationInbound": "10h 45m or null",
-          "stops": 0,
-          "bookingLink": "Direct URL to booking page or airline homepage"
+          const data = await response.json();
+          const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          const cleanedJsonText = textResponse.replace(/```json|```/gi, '').trim();
+          const parsedAirports = JSON.parse(cleanedJsonText);
+          
+          if (Array.isArray(parsedAirports)) {
+            setSuggestions(parsedAirports);
+            addLog('SYS', `Búsqueda global IA completada. ${parsedAirports.length} aeropuertos encontrados.`);
+            if (parsedAirports.length === 0) {
+              showToast('No se encontraron aeropuertos mundiales con esa búsqueda.', 'warning');
+            }
+          } else {
+            throw new Error('Formato de respuesta incorrecto');
+          }
+        } catch (err) {
+          addLog('ERR', `Error de búsqueda de aeropuertos: ${err.message}.`);
+          showToast('No se pudo completar la búsqueda global de aeropuertos por IA. Utilice la lista local.', 'error');
+        } finally {
+          setSearching(false);
         }
-      ]`;
+      };
 
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const handleSelectAirport = (airport, type) => {
+        if (type === 'origin') {
+          setOrigin(airport);
+          setOriginInput(`${airport.code} - ${airport.city}`);
+          setShowOriginDropdown(false);
+          addLog('SYS', `Origen fijado: ${airport.code} (${airport.name})`);
+        } else {
+          setDestination(airport);
+          setDestinationInput(`${airport.code} - ${airport.city}`);
+          setShowDestDropdown(false);
+          addLog('SYS', `Destino fijado: ${airport.code} (${airport.name})`);
+        }
+      };
+
+      const handleFlightSearch = async (e) => {
+        if (e) e.preventDefault();
+        setLoading(true);
+        setSelectedFlight(null);
+        setItinerary('');
+        
+        const cleanOrigin = sanitizeInput(origin.code);
+        const cleanDestination = sanitizeInput(destination.code);
+
+        if (isRoundTrip && new Date(returnDate) < new Date(departureDate)) {
+          addLog('ERR', 'Fallo de Validación: La fecha de regreso es anterior a la fecha de salida.');
+          showToast('La fecha de regreso no puede ser anterior a la de salida.', 'error');
+          setLoading(false);
+          return;
+        }
+
+        addLog('SEC', `Auditando parámetros: Origen=${cleanOrigin}, Destino=${cleanDestination}, Ida=${departureDate}, Regreso=${isRoundTrip ? returnDate : 'N/A'}, Pasajeros=${passengers}, EquipajeMano=${hasHandLuggage ? 'Sí' : 'No'}`);
+
+        if (!cleanOrigin || !cleanDestination) {
+          showToast('Por favor, selecciona aeropuertos válidos.', 'error');
+          setLoading(false);
+          return;
+        }
+
+        if (cleanOrigin === cleanDestination) {
+          showToast('El origen y el destino no pueden ser el mismo.', 'error');
+          setLoading(false);
+          return;
+        }
+
+        if (useAI) {
+          addLog('AI', 'Consultando tarifas aéreas directas en tiempo real con Google Search...');
+          
+          const prompt = `Find actual commercial flight options from ${cleanOrigin} to ${cleanDestination}. 
+          Details:
+          - Departure Date: ${departureDate}
+          ${isRoundTrip ? `- Return Date: ${returnDate} (This is a Round-trip flight)` : '- One-way flight only'}
+          - Number of Passengers: ${passengers} (Ensure total prices calculated reflect ${passengers} passenger tickets)
+          - Hand Luggage (Carry-on): ${hasHandLuggage ? 'Included in fare' : 'Basic economy fare, no carry-on included (personal item only)'}
+          - Maximum total price budget for all passengers: ${budget} USD.
+
+          You MUST return a clean JSON array representing active airlines currently serving this route on these dates.
+          Return EXACTLY this JSON structure without any markdown wrappers or backticks:
+          [
+            {
+              "airline": "Name of Airline",
+              "flightNumber": "Outbound Flight designation",
+              "returnFlightNumber": "Return Flight designation or null",
+              "price": 620, 
+              "durationOutbound": "10h 30m",
+              "durationInbound": "10h 45m or null",
+              "stops": 0,
+              "bookingLink": "Direct URL to booking page or airline homepage"
+            }
+          ]`;
+
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            const payload = {
+              contents: [{ parts: [{ text: prompt }] }],
+              tools: [{ "google_search": {} }],
+              systemInstruction: {
+                parts: [{ text: "Act as an ultra-high speed travel agency parser. Return strictly pure JSON arrays with no markdown formatting. Ensure prices are realistic and bookingLinks point to valid sites." }]
+              }
+            };
+
+            const response = await fetchWithBackoff(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            const cleanedJsonText = textResponse.replace(/```json|```/gi, '').trim();
+            const parsedFlights = JSON.parse(cleanedJsonText);
+            
+            if (Array.isArray(parsedFlights) && parsedFlights.length > 0) {
+              const structuralFlights = parsedFlights.map(f => ({
+                ...f,
+                bookingLink: f.bookingLink && f.bookingLink.startsWith('http') ? f.bookingLink : generateDeepLink(cleanOrigin, cleanDestination, departureDate, isRoundTrip ? returnDate : '', f.airline, isRoundTrip, passengers)
+              }));
+              setFlights(structuralFlights);
+              addLog('SYS', `Búsqueda IA completada. Encontrados ${structuralFlights.length} boletos.`);
+              setApiUsage(prev => ({ ...prev, used: prev.used + 1 }));
+            } else {
+              throw new Error('Formato JSON incorrecto');
+            }
+
+          } catch (err) {
+            addLog('WRN', `Activando failover determinista de vuelos por límites de API o clave ausente.`);
+            showToast('Utilizando motor local de tarifas por falta de API Key o cuota.', 'warning');
+            executeDeterministicFallback(cleanOrigin, cleanDestination);
+          }
+        } else {
+          addLog('SYS', 'Modo Local determinista activado.');
+          executeDeterministicFallback(cleanOrigin, cleanDestination);
+        }
+        setLoading(false);
+      };
+
+      const executeDeterministicFallback = (from, to) => {
+        const mockAirlines = [
+          { name: 'Iberia', code: 'IB', basePrice: 620, durationOutbound: '11h 15m', durationInbound: '11h 05m', stops: 0 },
+          { name: 'Aeroméxico', code: 'AM', basePrice: 710, durationOutbound: '11h 20m', durationInbound: '11h 10m', stops: 0 },
+          { name: 'Lufthansa', code: 'LH', basePrice: 850, durationOutbound: '14h 45m', durationInbound: '14h 20m', stops: 1 },
+          { name: 'United Airlines', code: 'UA', basePrice: 510, durationOutbound: '15h 10m', durationInbound: '15h 30m', stops: 1 }
+        ];
+
+        const results = mockAirlines.map((airline, idx) => {
+          const variance = Math.sin(idx + 1) * 80;
+          let calculatedPrice = airline.basePrice + variance;
+          
+          calculatedPrice = calculatedPrice * passengers;
+          
+          if (isRoundTrip) {
+            calculatedPrice = calculatedPrice * 1.85; 
+          }
+
+          if (hasHandLuggage) {
+            calculatedPrice += (35 * passengers * (isRoundTrip ? 2 : 1));
+          }
+
+          const finalPrice = Math.round(calculatedPrice);
+
+          return {
+            airline: airline.name,
+            flightNumber: `${airline.code}${Math.floor(Math.random() * 800) + 100}`,
+            returnFlightNumber: isRoundTrip ? `${airline.code}${Math.floor(Math.random() * 800) + 100}` : null,
+            price: finalPrice,
+            durationOutbound: airline.durationOutbound,
+            durationInbound: isRoundTrip ? airline.durationInbound : null,
+            stops: airline.stops,
+            bookingLink: generateDeepLink(from, to, departureDate, isRoundTrip ? returnDate : '', airline.code, isRoundTrip, passengers)
+          };
+        }).filter(f => f.price <= budget);
+
+        setFlights(results);
+        addLog('SYS', `Failover completado. Encontradas ${results.length} opciones adaptadas para ${passengers} pasajero(s).`);
+      };
+
+      const handleGenerateTTS = async (flight) => {
+        setAudioLoading(true);
+        if (audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+          setAudioUrl(null);
+        }
+        addLog('AI', `Invocando modelo gemini-2.5-flash-preview-tts para audio de vuelo...`);
+
+        const luggageText = hasHandLuggage ? 'with carry-on luggage included' : 'without hand luggage (personal item only)';
+        const tripText = isRoundTrip ? `round-trip journey returning on ${returnDate}` : 'one-way flight';
+        const spokenText = `Say cheerfully in a lively travel guide voice: Outstanding deal found! Fly from ${origin.city} to ${destination.city} with ${flight.airline}. This is a ${tripText} for ${passengers} traveler, ${luggageText}. Your total budget friendly price is ${flight.price} dollars. Excellent choice!`;
+
         const payload = {
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ "google_search": {} }],
-          systemInstruction: {
-            parts: [{ text: "Act as an ultra-high speed travel agency parser. Return strictly pure JSON arrays with no markdown formatting. Ensure prices are realistic and bookingLinks point to valid sites." }]
+          contents: [{ parts: [{ text: spokenText }] }],
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: voiceSelected }
+              }
+            }
           }
         };
 
-        const response = await fetchWithBackoff(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+          const response = await fetchWithBackoff(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
 
-        const data = await response.json();
-        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        const cleanedJsonText = textResponse.replace(/```json|```/gi, '').trim();
-        const parsedFlights = JSON.parse(cleanedJsonText);
-        
-        if (Array.isArray(parsedFlights) && parsedFlights.length > 0) {
-          const structuralFlights = parsedFlights.map(f => ({
-            ...f,
-            bookingLink: f.bookingLink && f.bookingLink.startsWith('http') ? f.bookingLink : generateDeepLink(cleanOrigin, cleanDestination, departureDate, isRoundTrip ? returnDate : '', f.airline, isRoundTrip, passengers)
-          }));
-          setFlights(structuralFlights);
-          addLog('SYS', `Búsqueda IA completada. Encontrados ${structuralFlights.length} boletos.`);
-          setApiUsage(prev => ({ ...prev, used: prev.used + 1 }));
-        } else {
-          throw new Error('Formato JSON incorrecto');
-        }
+          const result = await response.json();
+          const part = result?.candidates?.[0]?.content?.parts?.[0];
+          const rawAudio = part?.inlineData?.data;
+          const mimeType = part?.inlineData?.mimeType;
 
-      } catch (err) {
-        addLog('WRN', `Activando failover determinista de vuelos por límites de API o clave ausente.`);
-        showToast('Utilizando motor local de tarifas por falta de API Key o cuota.', 'warning');
-        executeDeterministicFallback(cleanOrigin, cleanDestination);
-      }
-    } else {
-      addLog('SYS', 'Modo Local determinista activado.');
-      executeDeterministicFallback(cleanOrigin, cleanDestination);
-    }
-    setLoading(false);
-  };
-
-  const executeDeterministicFallback = (from, to) => {
-    const mockAirlines = [
-      { name: 'Iberia', code: 'IB', basePrice: 620, durationOutbound: '11h 15m', durationInbound: '11h 05m', stops: 0 },
-      { name: 'Aeroméxico', code: 'AM', basePrice: 710, durationOutbound: '11h 20m', durationInbound: '11h 10m', stops: 0 },
-      { name: 'Lufthansa', code: 'LH', basePrice: 850, durationOutbound: '14h 45m', durationInbound: '14h 20m', stops: 1 },
-      { name: 'United Airlines', code: 'UA', basePrice: 510, durationOutbound: '15h 10m', durationInbound: '15h 30m', stops: 1 }
-    ];
-
-    const results = mockAirlines.map((airline, idx) => {
-      const variance = Math.sin(idx + 1) * 80;
-      let calculatedPrice = airline.basePrice + variance;
-      
-      // Multiplicar por pasajeros
-      calculatedPrice = calculatedPrice * passengers;
-      
-      // Duplicar si es viaje redondo
-      if (isRoundTrip) {
-        calculatedPrice = calculatedPrice * 1.85; // Descuento de tarifa roundtrip
-      }
-
-      // Cargo de equipaje si se solicita
-      if (hasHandLuggage) {
-        calculatedPrice += (35 * passengers * (isRoundTrip ? 2 : 1));
-      }
-
-      const finalPrice = Math.round(calculatedPrice);
-
-      return {
-        airline: airline.name,
-        flightNumber: `${airline.code}${Math.floor(Math.random() * 800) + 100}`,
-        returnFlightNumber: isRoundTrip ? `${airline.code}${Math.floor(Math.random() * 800) + 100}` : null,
-        price: finalPrice,
-        durationOutbound: airline.durationOutbound,
-        durationInbound: isRoundTrip ? airline.durationInbound : null,
-        stops: airline.stops,
-        bookingLink: generateDeepLink(from, to, departureDate, isRoundTrip ? returnDate : '', airline.code, isRoundTrip, passengers)
-      };
-    }).filter(f => f.price <= budget);
-
-    setFlights(results);
-    addLog('SYS', `Failover completado. Encontradas ${results.length} opciones adaptadas para ${passengers} pasajero(s).`);
-  };
-
-  const handleGenerateTTS = async (flight) => {
-    setAudioLoading(true);
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-    }
-    addLog('AI', `Invocando modelo gemini-2.5-flash-preview-tts para audio de vuelo...`);
-
-    const luggageText = hasHandLuggage ? 'with carry-on luggage included' : 'without hand luggage (personal item only)';
-    const tripText = isRoundTrip ? `round-trip journey returning on ${returnDate}` : 'one-way flight';
-    const spokenText = `Say cheerfully in a lively travel guide voice: Outstanding deal found! Fly from ${origin.city} to ${destination.city} with ${flight.airline}. This is a ${tripText} for ${passengers} traveler, ${luggageText}. Your total budget friendly price is ${flight.price} dollars. Excellent choice!`;
-
-    const payload = {
-      contents: [{ parts: [{ text: spokenText }] }],
-      generationConfig: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: voiceSelected }
+          if (rawAudio && mimeType && mimeType.startsWith("audio/")) {
+            const rateMatch = mimeType.match(/rate=(\d+)/);
+            const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+            
+            const pcmData = base64ToArrayBuffer(rawAudio);
+            const pcm16 = new Int16Array(pcmData);
+            const wavBlob = pcmToWav(pcm16, sampleRate);
+            const urlObj = URL.createObjectURL(wavBlob);
+            
+            setAudioUrl(urlObj);
+            addLog('SYS', `Audio de IA generado exitosamente. Frecuencia: ${sampleRate}Hz`);
+            showToast('Audioguía de vuelo lista.', 'success');
+          } else {
+            throw new Error("Respuesta de audio vacía o errónea");
           }
-        }
-      }
-    };
-
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
-      const response = await fetchWithBackoff(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const result = await response.json();
-      const part = result?.candidates?.[0]?.content?.parts?.[0];
-      const rawAudio = part?.inlineData?.data;
-      const mimeType = part?.inlineData?.mimeType;
-
-      if (rawAudio && mimeType && mimeType.startsWith("audio/")) {
-        const rateMatch = mimeType.match(/rate=(\d+)/);
-        const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
-        
-        const pcmData = base64ToArrayBuffer(rawAudio);
-        const pcm16 = new Int16Array(pcmData);
-        const wavBlob = pcmToWav(pcm16, sampleRate);
-        const urlObj = URL.createObjectURL(wavBlob);
-        
-        setAudioUrl(urlObj);
-        addLog('SYS', `Audio de IA generado exitosamente. Frecuencia: ${sampleRate}Hz`);
-        showToast('Audioguía de vuelo lista.', 'success');
-      } else {
-        throw new Error("Respuesta de audio vacía o errónea");
-      }
-    } catch (err) {
-      addLog('ERR', `Fallo al generar TTS: ${err.message}.`);
-      showToast('Error al procesar el TTS de Gemini. Revisa tu clave API.', 'error');
-    } finally {
-      setAudioLoading(false);
-    }
-  };
-
-  const handleGenerateItinerary = async (flight) => {
-    setItineraryLoading(true);
-    setItinerary('');
-    addLog('AI', `Generando itinerario de 3 días para ${destination.city} filtrando clima para ${departureDate}...`);
-
-    const prompt = `Create a brief and premium 3-day travel itinerary for ${destination.city} (${destination.country}). 
-    Travel specifications:
-    - Outbound date: ${departureDate}
-    ${isRoundTrip ? `- Return date: ${returnDate}` : ''}
-    - Total passengers: ${passengers}
-    - Luggage constraints: ${hasHandLuggage ? 'Light luggage allowed' : 'Extremely light, personal item only'}
-    - Arriving with ${flight.airline}.
-
-    Include active tourist hot-spots, verified places to eat, and seasonal warnings for mid-2026. Keep it structured in clean Markdown with H3 headings for Day 1, Day 2, and Day 3. Avoid long intros.`;
-
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-      const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ "google_search": {} }],
-        systemInstruction: {
-          parts: [{ text: "Eres un conserje de viajes de lujo. Genera itinerarios precisos, basados en hechos reales, estructurados en formato markdown conciso y elegante." }]
+        } catch (err) {
+          addLog('ERR', `Fallo al generar TTS: ${err.message}.`);
+          showToast('Error al procesar el TTS de Gemini. Revisa tu clave API.', 'error');
+        } finally {
+          setAudioLoading(false);
         }
       };
 
-      const response = await fetchWithBackoff(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const handleGenerateItinerary = async (flight) => {
+        setItineraryLoading(true);
+        setItinerary('');
+        addLog('AI', `Generando itinerario de 3 días para ${destination.city} filtrando clima para ${departureDate}...`);
 
-      const data = await response.json();
-      const outputText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      if (outputText) {
-        setItinerary(outputText);
-        addLog('SYS', `Itinerario de viaje para ${destination.city} aprovisionado correctamente.`);
-      } else {
-        throw new Error("No se pudo obtener el texto");
-      }
-    } catch (err) {
-      addLog('ERR', `Fallo al redactar itinerario por IA: ${err.message}`);
-      setItinerary(`### ⚠️ Fallo al invocar la API de Gemini\n\n**Sugerencia rápida de contingencia para ${destination.city}:**\n- **Día 1:** Explora el centro histórico y museos principales de la ciudad.\n- **Día 2:** Recorrido gastronómico local con opción de ecoturismo urbano.\n- **Día 3:** Tour de souvenirs ligeros (ideal por tus límites de equipaje) y cena icónica.`);
-    } finally {
-      setItineraryLoading(false);
-    }
-  };
+        const prompt = `Create a brief and premium 3-day travel itinerary for ${destination.city} (${destination.country}). 
+        Travel specifications:
+        - Outbound date: ${departureDate}
+        ${isRoundTrip ? `- Return date: ${returnDate}` : ''}
+        - Total passengers: ${passengers}
+        - Luggage constraints: ${hasHandLuggage ? 'Light luggage allowed' : 'Extremely light, personal item only'}
+        - Arriving with ${flight.airline}.
 
-  const handleChatSubmit = async (e) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
+        Include active tourist hot-spots, verified places to eat, and seasonal warnings for mid-2026. Keep it structured in clean Markdown with H3 headings for Day 1, Day 2, and Day 3. Avoid long intros.`;
 
-    const userMsg = chatInput;
-    setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-    setChatInput('');
-    setChatLoading(true);
-    addLog('AI', 'Enviando consulta de negociación de tarifas al Copiloto de IA...');
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+          const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            tools: [{ "google_search": {} }],
+            systemInstruction: {
+              parts: [{ text: "Eres un conserje de viajes de lujo. Genera itinerarios precisos, basados en hechos reales, estructurados en formato markdown conciso y elegante." }]
+            }
+          };
 
-    const prompt = `The user asks: "${userMsg}". 
-    Flight details:
-    - Origin: ${origin.city} (${origin.code})
-    - Destination: ${destination.city} (${destination.code})
-    - Journey dates: Departure ${departureDate}${isRoundTrip ? ` and return ${returnDate}` : ' (One-way)'}
-    - Total passengers: ${passengers}
-    - Hand luggage: ${hasHandLuggage ? 'Carry-on bag included' : 'No carry-on luggage (basic)'}
-    - Budget: ${budget} USD.
+          const response = await fetchWithBackoff(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
 
-    Analyze fare trends, carry-on fees, and advise if they should buy now or wait. Keep response to 2 short paragraphs.`;
-
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-      const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ "google_search": {} }],
-        systemInstruction: {
-          parts: [{ text: "Act as a flight cost estimator and ticket negotiator. Give smart, data-driven advice based on live queries." }]
-        }
-      };
-
-      const response = await fetchWithBackoff(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-      const answer = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (answer) {
-        setChatMessages(prev => [...prev, { role: 'assistant', text: answer }]);
-        addLog('SYS', 'Análisis del Copiloto tarifario actualizado con éxito.');
-      } else {
-        throw new Error("Sin respuesta.");
-      }
-    } catch (err) {
-      addLog('ERR', `Error en chat del copiloto: ${err.message}`);
-      setChatMessages(prev => [...prev, { role: 'assistant', text: "No he podido conectar con el módulo de análisis de tarifas. En términos generales: te aconsejo reservar con un margen de 3 a 5 semanas para rutas continentales si viajas con equipaje de mano." }]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const handleOutsideClick = () => {
-      setShowOriginDropdown(false);
-      setShowDestDropdown(false);
-    };
-    window.addEventListener('click', handleOutsideClick);
-    return () => window.removeEventListener('click', handleOutsideClick);
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col justify-between">
-      
-      {}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/30">
-            <Plane className="h-6 w-6 text-emerald-400 animate-pulse" />
-          </div>
-          <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v2.6</span>
-            <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold">Roundtrip Pro</span>
-            </h1>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 justify-end w-full sm:w-auto">
-          <div className="hidden lg:flex items-center gap-4 bg-slate-950 px-4 py-2 rounded-lg border border-slate-800 text-xs font-mono">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-              <span className="text-slate-400">MRR:</span> <span className="text-white">${mrr.toLocaleString()} USD</span>
-            </div>
-            <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
-              <span className="text-slate-400">EBITDA:</span> <span className="text-emerald-400 font-bold">{ebitda}%</span>
-            </div>
-          </div>
-
-          <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
-            <button 
-              onClick={() => setActiveTab('search')} 
-              className={`px-3 py-1.5 rounded-md transition-all font-semibold ${activeTab === 'search' ? 'bg-emerald-500 text-slate-950 shadow font-bold' : 'text-slate-400 hover:text-white'}`}
-            >
-              Motor de Vuelos
-            </button>
-            <button 
-              onClick={() => setActiveTab('security')} 
-              className={`px-3 py-1.5 rounded-md transition-all font-semibold flex items-center gap-1.5 ${activeTab === 'security' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
-            >
-              <Shield className="h-3 w-3" /> Security
-            </button>
-            <button 
-              onClick={() => setActiveTab('stripe')} 
-              className={`px-3 py-1.5 rounded-md transition-all font-semibold flex items-center gap-1.5 ${activeTab === 'stripe' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
-            >
-              <DollarSign className="h-3 w-3" /> Stripe Sandbox
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Alert toast display */}
-      {alertMsg && (
-        <div className="max-w-7xl mx-auto w-full px-6 mt-4">
-          <div className={`p-4 rounded-lg flex items-center gap-3 border ${
-            alertMsg.type === 'error' ? 'bg-red-950/40 border-red-800/80 text-red-200' :
-            alertMsg.type === 'warning' ? 'bg-amber-950/40 border-amber-800/80 text-amber-200' :
-            'bg-emerald-950/40 border-emerald-800/80 text-emerald-200'
-          }`}>
-            <AlertTriangle className="h-5 w-5 shrink-0" />
-            <span className="text-xs font-medium">{alertMsg.text}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Viewport */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {}
-        <div className="lg:col-span-5 flex flex-col gap-6">
+          const data = await response.json();
+          const outputText = data.candidates?.[0]?.content?.parts?.[0]?.text;
           
-          {/* Logical Tenant boundary */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                <Database className="h-3.5 w-3.5 text-indigo-400" /> Logical Tenant Boundary (RLS)
-              </label>
-              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 font-bold">Active</span>
+          if (outputText) {
+            setItinerary(outputText);
+            addLog('SYS', `Itinerario de viaje para ${destination.city} aprovisionado correctamente.`);
+          } else {
+            throw new Error("No se pudo obtener el texto");
+          }
+        } catch (err) {
+          addLog('ERR', `Fallo al redactar itinerario por IA: ${err.message}`);
+          setItinerary(`### ⚠️ Fallo al invocar la API de Gemini\n\n**Sugerencia rápida de contingencia para ${destination.city}:**\n- **Día 1:** Explora el centro histórico y museos principales de la ciudad.\n- **Día 2:** Recorrido gastronómico local con opción de ecoturismo urbano.\n- **Día 3:** Tour de souvenirs ligeros (ideal por tus límites de equipaje) y cena icónica.`);
+        } finally {
+          setItineraryLoading(false);
+        }
+      };
+
+      const handleChatSubmit = async (e) => {
+        e.preventDefault();
+        if (!chatInput.trim()) return;
+
+        const userMsg = chatInput;
+        setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+        setChatInput('');
+        setChatLoading(true);
+        addLog('AI', 'Enviando consulta de negociación de tarifas al Copiloto de IA...');
+
+        const prompt = `The user asks: "${userMsg}". 
+        Flight details:
+        - Origin: ${origin.city} (${origin.code})
+        - Destination: ${destination.city} (${destination.code})
+        - Journey dates: Departure ${departureDate}${isRoundTrip ? ` and return ${returnDate}` : ' (One-way)'}
+        - Total passengers: ${passengers}
+        - Hand luggage: ${hasHandLuggage ? 'Carry-on bag included' : 'No carry-on luggage (basic)'}
+        - Budget: ${budget} USD.
+
+        Analyze fare trends, carry-on fees, and advise if they should buy now or wait. Keep response to 2 short paragraphs.`;
+
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+          const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            tools: [{ "google_search": {} }],
+            systemInstruction: {
+              parts: [{ text: "Act as a flight cost estimator and ticket negotiator. Give smart, data-driven advice based on live queries." }]
+            }
+          };
+
+          const response = await fetchWithBackoff(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await response.json();
+          const answer = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (answer) {
+            setChatMessages(prev => [...prev, { role: 'assistant', text: answer }]);
+            addLog('SYS', 'Análisis del Copiloto tarifario actualizado con éxito.');
+          } else {
+            throw new Error("Sin respuesta.");
+          }
+        } catch (err) {
+          addLog('ERR', `Error en chat del copiloto: ${err.message}`);
+          setChatMessages(prev => [...prev, { role: 'assistant', text: "No he podido conectar con el módulo de análisis de tarifas. En términos generales: te aconsejo reservar con un margen de 3 a 5 semanas para rutas continentales si viajas con equipaje de mano." }]);
+        } finally {
+          setChatLoading(false);
+        }
+      };
+
+      useEffect(() => {
+        const handleOutsideClick = () => {
+          setShowOriginDropdown(false);
+          setShowDestDropdown(false);
+        };
+        window.addEventListener('click', handleOutsideClick);
+        return () => window.removeEventListener('click', handleOutsideClick);
+      }, []);
+
+      return (
+        <div className="flex flex-col min-h-screen justify-between bg-slate-950">
+          
+          {}
+          <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/30">
+                <Icon name="plane" className="h-6 w-6 text-emerald-400 animate-pulse" />
+              </div>
+              <div>
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v2.6</span>
+                <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                  JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold">Roundtrip Pro</span>
+                </h1>
+              </div>
             </div>
-            
-            <select 
-              value={tenant} 
-              onChange={(e) => {
-                setTenant(e.target.value);
-                addLog('SEC', `Conmutando contexto tenant. RLS purga caché. Nuevo Tenant: ${e.target.value}`);
-              }} 
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-indigo-500 font-mono text-slate-300"
-            >
-              <option value="enterprise_corp">Enterprise Corp (Tenant ID: TX_9082)</option>
-              <option value="personal_premium">Premium User (Tenant ID: TX_1240)</option>
-              <option value="public_free_tier">Public Tier (Tenant ID: TX_FREE_LIMIT)</option>
-            </select>
-          </div>
 
-          {/* Core Flight parameter Formulator */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl"></div>
-            
-            <h2 className="text-md font-bold text-white mb-4 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-emerald-400" /> Parámetros de Ruta Inteligente
-            </h2>
-
-            <form onSubmit={handleFlightSearch} className="flex flex-col gap-4">
-              
-              {/* Selector de Tipo de Viaje (Roundtrip vs Oneway) */}
-              <div className="bg-slate-950 p-1 rounded-lg border border-slate-800 flex text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsRoundTrip(true);
-                    addLog('SYS', 'Tipo de viaje modificado a: Ida y Vuelta (Roundtrip)');
-                  }}
-                  className={`flex-1 py-1.5 rounded-md font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                    isRoundTrip ? 'bg-slate-800 text-white border border-slate-700/60 font-bold' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <ArrowLeftRight className="h-3.5 w-3.5 text-emerald-400" /> Ida y Vuelta
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsRoundTrip(false);
-                    addLog('SYS', 'Tipo de viaje modificado a: Solo Ida (Oneway)');
-                  }}
-                  className={`flex-1 py-1.5 rounded-md font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                    !isRoundTrip ? 'bg-slate-800 text-white border border-slate-700/60 font-bold' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Plane className="h-3.5 w-3.5 text-rose-400" /> Solo Ida
-                </button>
-              </div>
-
-              {/* Origin Airport autocomplete widget */}
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
-                <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-emerald-400" /> Origen (Cualquier Ciudad o Aeropuerto)
-                </label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text"
-                    value={originInput}
-                    onChange={(e) => handleAirportInputChange(e.target.value, 'origin')}
-                    onFocus={() => setShowOriginDropdown(true)}
-                    placeholder="Ej: Paris, JFK, Tokyo..."
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-emerald-500 text-white placeholder-slate-600 font-medium font-sans"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleGlobalAirportAISearch('origin')}
-                    disabled={searchingOrigin}
-                    title="Buscar aeropuertos en todo el mundo con IA"
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
-                  >
-                    {searchingOrigin ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
-                    <span className="text-[10px] font-bold">Global IA</span>
-                  </button>
-                </div>
-
-                {/* Suggestions display box */}
-                {showOriginDropdown && (originSuggestions.length > 0 || searchingOrigin) && (
-                  <div className="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800/60">
-                    {searchingOrigin ? (
-                      <div className="p-3 text-xs text-slate-400 flex items-center gap-2">
-                        <RefreshCw className="h-3 w-3 animate-spin text-emerald-400" />
-                        Buscando aeropuertos globales mediante IA...
-                      </div>
-                    ) : (
-                      originSuggestions.map((ap) => (
-                        <div
-                          key={ap.code}
-                          onClick={() => handleSelectAirport(ap, 'origin')}
-                          className="p-2.5 hover:bg-slate-800 cursor-pointer text-xs transition-all flex justify-between items-center"
-                        >
-                          <div>
-                            <span className="font-bold text-emerald-400 font-mono mr-2">{ap.code}</span>
-                            <span className="text-white font-medium">{ap.city}</span>
-                            <span className="text-slate-400 block text-[10px] mt-0.5">{ap.name}</span>
-                          </div>
-                          <span className="text-[10px] bg-slate-950 px-1.5 py-0.5 rounded text-slate-500 border border-slate-800 font-medium">{ap.country}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Destination Airport autocomplete widget */}
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
-                <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
-                  <MapPin className="h-3.5 w-3.5 text-rose-400" /> Destino (Cualquier Ciudad o Aeropuerto)
-                </label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text"
-                    value={destinationInput}
-                    onChange={(e) => handleAirportInputChange(e.target.value, 'destination')}
-                    onFocus={() => setShowDestDropdown(true)}
-                    placeholder="Ej: Mérida, CDG, Cairo..."
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-emerald-500 text-white placeholder-slate-600 font-medium font-sans"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleGlobalAirportAISearch('destination')}
-                    disabled={searchingDestination}
-                    title="Buscar aeropuertos en todo el mundo con IA"
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
-                  >
-                    {searchingDestination ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
-                    <span className="text-[10px] font-bold">Global IA</span>
-                  </button>
-                </div>
-
-                {/* Suggestions display box */}
-                {showDestDropdown && (destinationSuggestions.length > 0 || searchingDestination) && (
-                  <div className="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800/60">
-                    {searchingDestination ? (
-                      <div className="p-3 text-xs text-slate-400 flex items-center gap-2">
-                        <RefreshCw className="h-3 w-3 animate-spin text-emerald-400" />
-                        Buscando aeropuertos globales mediante IA...
-                      </div>
-                    ) : (
-                      destinationSuggestions.map((ap) => (
-                        <div
-                          key={ap.code}
-                          onClick={() => handleSelectAirport(ap, 'destination')}
-                          className="p-2.5 hover:bg-slate-800 cursor-pointer text-xs transition-all flex justify-between items-center"
-                        >
-                          <div>
-                            <span className="font-bold text-emerald-400 font-mono mr-2">{ap.code}</span>
-                            <span className="text-white font-medium">{ap.city}</span>
-                            <span className="text-slate-400 block text-[10px] mt-0.5">{ap.name}</span>
-                          </div>
-                          <span className="text-[10px] bg-slate-950 px-1.5 py-0.5 rounded text-slate-500 border border-slate-800 font-medium">{ap.country}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Fecha de Ida y Vuelta */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5 text-emerald-400" /> Fecha de Ida
-                  </label>
-                  <input 
-                    type="date" 
-                    value={departureDate} 
-                    onChange={(e) => {
-                      setDepartureDate(e.target.value);
-                      addLog('SYS', `Nueva fecha de salida fijada: ${e.target.value}`);
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
-                  />
-                </div>
-                <div>
-                  <label className={`block text-xs font-semibold mb-1 flex items-center gap-1 ${isRoundTrip ? 'text-slate-400' : 'text-slate-600'}`}>
-                    <Calendar className="h-3.5 w-3.5 text-rose-400" /> Fecha de Regreso
-                  </label>
-                  <input 
-                    type="date" 
-                    value={returnDate} 
-                    disabled={!isRoundTrip}
-                    onChange={(e) => {
-                      setReturnDate(e.target.value);
-                      addLog('SYS', `Nueva fecha de regreso fijada: ${e.target.value}`);
-                    }}
-                    className={`w-full bg-slate-950 border rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white ${
-                      isRoundTrip ? 'border-slate-800 opacity-100' : 'border-slate-900 opacity-40 cursor-not-allowed'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* Pasajeros y Presupuesto Máximo */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                    <Users className="h-3.5 w-3.5 text-indigo-400" /> Pasajeros
-                  </label>
-                  <select
-                    value={passengers}
-                    onChange={(e) => {
-                      setPassengers(Number(e.target.value));
-                      addLog('SYS', `Cantidad de pasajeros actualizada a: ${e.target.value}`);
-                    }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                      <option key={n} value={n}>{n} {n === 1 ? 'Persona' : 'Personas'}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
-                    <DollarSign className="h-3.5 w-3.5 text-emerald-400" /> Presupuesto Máx.
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-2 text-xs text-slate-500 font-bold">$</span>
-                    <input 
-                      type="number" 
-                      value={budget} 
-                      onChange={(e) => setBudget(Number(e.target.value))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 pl-6 pr-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Toggle de Equipaje de Mano */}
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+            <div className="flex flex-wrap items-center gap-3 justify-end w-full sm:w-auto">
+              <div className="hidden lg:flex items-center gap-4 bg-slate-950 px-4 py-2 rounded-lg border border-slate-800 text-xs font-mono">
                 <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-indigo-500/10 rounded border border-indigo-500/20">
-                    <Luggage className="h-4 w-4 text-indigo-400" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-200 block">Equipaje de Mano</span>
-                    <span className="text-[10px] text-slate-500 block">Incluir maleta de cabina de 10kg</span>
-                  </div>
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                  <span className="text-slate-400">MRR:</span> <span className="text-white">${mrr.toLocaleString()} USD</span>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={hasHandLuggage} 
-                    onChange={(e) => {
-                      setHasHandLuggage(e.target.checked);
-                      addLog('SYS', `Política de equipaje de mano actualizada: ${e.target.checked ? 'Incluida' : 'Excluida (Solo artículo personal)'}`);
-                    }}
-                    className="sr-only peer"
-                  />
-                  <div className="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-slate-950 peer-checked:after:border-slate-950"></div>
-                </label>
+                <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
+                  <span className="text-slate-400">EBITDA:</span> <span className="text-emerald-400 font-bold">{ebitda}%</span>
+                </div>
               </div>
 
-              {/* Gemini Key Config & AI Selector */}
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800/80 mt-1">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
-                    <Sparkles className="h-3.5 w-3.5 text-emerald-400" /> Búsqueda por IA Activa
-                  </span>
-                  <input 
-                    type="checkbox" 
-                    checked={useAI} 
-                    onChange={(e) => setUseAI(e.target.checked)}
-                    className="rounded text-emerald-500 bg-slate-950 border-slate-800 focus:ring-emerald-500"
-                  />
+              <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+                <button 
+                  onClick={() => setActiveTab('search')} 
+                  className={`px-3 py-1.5 rounded-md transition-all font-semibold ${activeTab === 'search' ? 'bg-emerald-500 text-slate-950 shadow font-bold' : 'text-slate-400 hover:text-white'}`}
+                >
+                  Motor de Vuelos
+                </button>
+                <button 
+                  onClick={() => setActiveTab('security')} 
+                  className={`px-3 py-1.5 rounded-md transition-all font-semibold flex items-center gap-1.5 ${activeTab === 'security' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
+                >
+                  <Icon name="shield" className="h-3.5 w-3.5" /> Security
+                </button>
+                <button 
+                  onClick={() => setActiveTab('stripe')} 
+                  className={`px-3 py-1.5 rounded-md transition-all font-semibold flex items-center gap-1.5 ${activeTab === 'stripe' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
+                >
+                  <Icon name="dollar" className="h-3.5 w-3.5" /> Stripe Sandbox
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {alertMsg && (
+            <div className="max-w-7xl mx-auto w-full px-6 mt-4">
+              <div className={`p-4 rounded-lg flex items-center gap-3 border ${
+                alertMsg.type === 'error' ? 'bg-red-950/40 border-red-800/80 text-red-200' :
+                alertMsg.type === 'warning' ? 'bg-amber-950/40 border-amber-800/80 text-amber-200' :
+                'bg-emerald-950/40 border-emerald-800/80 text-emerald-200'
+              }`}>
+                <Icon name="warning" className="h-5 w-5 shrink-0" />
+                <span className="text-xs font-medium">{alertMsg.text}</span>
+              </div>
+            </div>
+          )}
+
+          {}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <div className="lg:col-span-5 flex flex-col gap-6">
+              
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                    <Icon name="database" className="h-3.5 w-3.5 text-indigo-400" /> Logical Tenant Boundary (RLS)
+                  </label>
+                  <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 font-bold">Active</span>
                 </div>
                 
-                {useAI && (
-                  <div className="space-y-2">
-                    <div>
-                      <label className="block text-[10px] font-mono text-slate-400 mb-1 flex items-center justify-between">
-                        <span>Gemini API Key</span>
-                        <span className="text-[9px] text-emerald-500 font-bold">Recomendado</span>
-                      </label>
-                      <div className="relative">
-                        <Key className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-600" />
-                        <input 
-                          type="password" 
-                          placeholder="Ingresa clave Gemini para Búsqueda Global" 
-                          value={apiKey} 
-                          onChange={(e) => setApiKey(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 pl-7 pr-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-slate-400"
-                        />
-                      </div>
+                <select 
+                  value={tenant} 
+                  onChange={(e) => {
+                    setTenant(e.target.value);
+                    addLog('SEC', `Conmutando contexto tenant. RLS purga caché. Nuevo Tenant: ${e.target.value}`);
+                  }} 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-indigo-500 font-mono text-slate-300"
+                >
+                  <option value="enterprise_corp">Enterprise Corp (Tenant ID: TX_9082)</option>
+                  <option value="personal_premium">Premium User (Tenant ID: TX_1240)</option>
+                  <option value="public_free_tier">Public Tier (Tenant ID: TX_FREE_LIMIT)</option>
+                </select>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl"></div>
+                
+                <h2 className="text-md font-bold text-white mb-4 flex items-center gap-2">
+                  <Icon name="sparkles" className="h-4 w-4 text-emerald-400" /> Parámetros de Ruta Inteligente
+                </h2>
+
+                <form onSubmit={handleFlightSearch} className="flex flex-col gap-4">
+                  
+                  <div className="bg-slate-950 p-1 rounded-lg border border-slate-800 flex text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRoundTrip(true);
+                        addLog('SYS', 'Tipo de viaje modificado a: Ida y Vuelta (Roundtrip)');
+                      }}
+                      className={`flex-1 py-1.5 rounded-md font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                        isRoundTrip ? 'bg-slate-800 text-white border border-slate-700/60 font-bold' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Icon name="arrowLeftRight" className="h-3.5 w-3.5 text-emerald-400" /> Ida y Vuelta
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsRoundTrip(false);
+                        addLog('SYS', 'Tipo de viaje modificado a: Solo Ida (Oneway)');
+                      }}
+                      className={`flex-1 py-1.5 rounded-md font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                        !isRoundTrip ? 'bg-slate-800 text-white border border-slate-700/60 font-bold' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Icon name="plane" className="h-3.5 w-3.5 text-rose-400" /> Solo Ida
+                    </button>
+                  </div>
+
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+                      <Icon name="mapPin" className="h-3.5 w-3.5 text-emerald-400" /> Origen (Cualquier Ciudad o Aeropuerto)
+                    </label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={originInput}
+                        onChange={(e) => handleAirportInputChange(e.target.value, 'origin')}
+                        onFocus={() => setShowOriginDropdown(true)}
+                        placeholder="Ej: Paris, JFK, Tokyo..."
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-emerald-500 text-white placeholder-slate-600 font-medium font-sans"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleGlobalAirportAISearch('origin')}
+                        disabled={searchingOrigin}
+                        title="Buscar aeropuertos en todo el mundo con IA"
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
+                      >
+                        {searchingOrigin ? <Icon name="refresh" className="h-3.5 w-3.5 animate-spin" /> : <Icon name="globe" className="h-3.5 w-3.5" />}
+                        <span className="text-[10px] font-bold">Global IA</span>
+                      </button>
                     </div>
 
+                    {showOriginDropdown && (originSuggestions.length > 0 || searchingOrigin) && (
+                      <div className="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800/60">
+                        {searchingOrigin ? (
+                          <div className="p-3 text-xs text-slate-400 flex items-center gap-2">
+                            <Icon name="refresh" className="h-3 w-3 animate-spin text-emerald-400" />
+                            Buscando aeropuertos globales mediante IA...
+                          </div>
+                        ) : (
+                          originSuggestions.map((ap) => (
+                            <div
+                              key={ap.code}
+                              onClick={() => handleSelectAirport(ap, 'origin')}
+                              className="p-2.5 hover:bg-slate-800 cursor-pointer text-xs transition-all flex justify-between items-center"
+                            >
+                              <div>
+                                <span className="font-bold text-emerald-400 font-mono mr-2">{ap.code}</span>
+                                <span className="text-white font-medium">{ap.city}</span>
+                                <span className="text-slate-400 block text-[10px] mt-0.5">{ap.name}</span>
+                              </div>
+                              <span className="text-[10px] bg-slate-950 px-1.5 py-0.5 rounded text-slate-500 border border-slate-800 font-medium">{ap.country}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+                      <Icon name="mapPin" className="h-3.5 w-3.5 text-rose-400" /> Destino (Cualquier Ciudad o Aeropuerto)
+                    </label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={destinationInput}
+                        onChange={(e) => handleAirportInputChange(e.target.value, 'destination')}
+                        onFocus={() => setShowDestDropdown(true)}
+                        placeholder="Ej: Mérida, CDG, Cairo..."
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-emerald-500 text-white placeholder-slate-600 font-medium font-sans"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleGlobalAirportAISearch('destination')}
+                        disabled={searchingDestination}
+                        title="Buscar aeropuertos en todo el mundo con IA"
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
+                      >
+                        {searchingDestination ? <Icon name="refresh" className="h-3.5 w-3.5 animate-spin" /> : <Icon name="globe" className="h-3.5 w-3.5" />}
+                        <span className="text-[10px] font-bold">Global IA</span>
+                      </button>
+                    </div>
+
+                    {showDestDropdown && (destinationSuggestions.length > 0 || searchingDestination) && (
+                      <div className="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800/60">
+                        {searchingDestination ? (
+                          <div className="p-3 text-xs text-slate-400 flex items-center gap-2">
+                            <Icon name="refresh" className="h-3 w-3 animate-spin text-emerald-400" />
+                            Buscando aeropuertos globales mediante IA...
+                          </div>
+                        ) : (
+                          destinationSuggestions.map((ap) => (
+                            <div
+                              key={ap.code}
+                              onClick={() => handleSelectAirport(ap, 'destination')}
+                              className="p-2.5 hover:bg-slate-800 cursor-pointer text-xs transition-all flex justify-between items-center"
+                            >
+                              <div>
+                                <span className="font-bold text-emerald-400 font-mono mr-2">{ap.code}</span>
+                                <span className="text-white font-medium">{ap.city}</span>
+                                <span className="text-slate-400 block text-[10px] mt-0.5">{ap.name}</span>
+                              </div>
+                              <span className="text-[10px] bg-slate-950 px-1.5 py-0.5 rounded text-slate-500 border border-slate-800 font-medium">{ap.country}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-semibold text-slate-400 mb-1">
-                        Voz del Guía Turístico (TTS)
+                      <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                        <Icon name="calendar" className="h-3.5 w-3.5 text-emerald-400" /> Fecha de Ida
+                      </label>
+                      <input 
+                        type="date" 
+                        value={departureDate} 
+                        onChange={(e) => {
+                          setDepartureDate(e.target.value);
+                          addLog('SYS', `Nueva fecha de salida fijada: ${e.target.value}`);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-semibold mb-1 flex items-center gap-1 ${isRoundTrip ? 'text-slate-400' : 'text-slate-600'}`}>
+                        <Icon name="calendar" className="h-3.5 w-3.5 text-rose-400" /> Fecha de Regreso
+                      </label>
+                      <input 
+                        type="date" 
+                        value={returnDate} 
+                        disabled={!isRoundTrip}
+                        onChange={(e) => {
+                          setReturnDate(e.target.value);
+                          addLog('SYS', `Nueva fecha de regreso fijada: ${e.target.value}`);
+                        }}
+                        className={`w-full bg-slate-950 border rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white ${
+                          isRoundTrip ? 'border-slate-800 opacity-100' : 'border-slate-900 opacity-40 cursor-not-allowed'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                        <Icon name="users" className="h-3.5 w-3.5 text-indigo-400" /> Pasajeros
                       </label>
                       <select
-                        value={voiceSelected}
-                        onChange={(e) => setVoiceSelected(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none"
+                        value={passengers}
+                        onChange={(e) => {
+                          setPassengers(Number(e.target.value));
+                          addLog('SYS', `Cantidad de pasajeros actualizada a: ${e.target.value}`);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
                       >
-                        {PREBUILT_VOICES.map(v => (
-                          <option key={v.id} value={v.id}>{v.name}</option>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
+                          <option key={n} value={n}>{n} {n === 1 ? 'Persona' : 'Personas'}</option>
                         ))}
                       </select>
                     </div>
-                  </div>
-                )}
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 text-xs mt-1 font-sans"
-              >
-                {loading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" /> Buscando ofertas reales...
-                  </>
-                ) : (
-                  <>
-                    <Search className="h-4 w-4" /> Buscar Ofertas de Vuelos
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* FinOps metrics */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl text-xs">
-            <h3 className="font-bold text-white mb-2 flex items-center gap-1">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> FinOps Metrics & API Usage
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-slate-950 p-2.5 rounded border border-slate-800/50">
-                <span className="text-slate-500 block text-[9px] uppercase font-bold">Gross Margin</span>
-                <span className="text-md font-bold text-white font-mono">89.4%</span>
-              </div>
-              <div className="bg-slate-950 p-2.5 rounded border border-slate-800/50">
-                <span className="text-slate-500 block text-[9px] uppercase font-bold">Costo por consulta</span>
-                <span className="text-md font-bold text-emerald-400 font-mono">$0.0018 <span className="text-[9px] text-slate-500">USD</span></span>
-              </div>
-            </div>
-            <div className="mt-3">
-              <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                <span>Cuota de API consumida</span>
-                <span>{apiUsage.used} / {apiUsage.limit} Req</span>
-              </div>
-              <div className="w-full bg-slate-950 rounded-full h-1 border border-slate-800">
-                <div 
-                  className="bg-emerald-500 h-1 rounded-full transition-all" 
-                  style={{ width: `${(apiUsage.used / apiUsage.limit) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        {}
-        <div className="lg:col-span-7 flex flex-col gap-6">
-          
-          {activeTab === 'search' && (
-            <div className="flex flex-col gap-6 flex-1">
-              
-              {/* Resultados de Vuelos */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                  <div>
-                    <h2 className="text-md font-bold text-white flex items-center gap-1.5">
-                      <Plane className="h-4.5 w-4.5 text-emerald-400" /> Tarifas & Enlaces de Compra Directa
-                    </h2>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Vuelos desde {origin.city} hacia {destination.city} ({isRoundTrip ? 'Ida y Vuelta' : 'Solo Ida'}, {passengers} pax)
-                    </p>
-                  </div>
-                  <span className="text-xs font-mono text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
-                    {flights.length} Encontrados
-                  </span>
-                </div>
-
-                {flights.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-8 my-auto min-h-[250px]">
-                    <div className="bg-slate-950 p-4 rounded-full border border-slate-800 mb-3">
-                      <Globe className="h-8 w-8 text-slate-600" />
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                        <Icon name="dollar" className="h-3.5 w-3.5 text-emerald-400" /> Presupuesto Máx.
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-2.5 text-xs text-slate-500 font-bold">$</span>
+                        <input 
+                          type="number" 
+                          value={budget} 
+                          onChange={(e) => setBudget(Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 pl-6 pr-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
+                        />
+                      </div>
                     </div>
-                    <h3 className="text-sm font-bold text-slate-300">Esperando búsqueda de ruta</h3>
-                    <p className="text-xs text-slate-500 max-w-xs mt-1">
-                      Elige el origen y destino en el buscador inteligente para listar opciones directas de aerolíneas en tiempo real.
-                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1">
-                    {flights.map((flight, idx) => {
-                      const isSelected = selectedFlight?.flightNumber === flight.flightNumber;
-                      return (
-                        <div 
-                          key={idx} 
-                          className={`bg-slate-950 border rounded-xl p-4 transition-all relative overflow-hidden group cursor-pointer ${
-                            isSelected ? 'border-emerald-500 shadow-emerald-500/5' : 'border-slate-800 hover:border-slate-700'
-                          }`}
-                          onClick={() => {
-                            setSelectedFlight(flight);
-                            setItinerary('');
-                          }}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="bg-slate-900 text-slate-300 px-2.5 py-0.5 rounded text-[11px] font-bold border border-slate-800 flex items-center gap-1.5">
-                              <Sparkles className="h-3 w-3 text-emerald-400" /> {flight.airline}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              {hasHandLuggage ? (
-                                <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1">
-                                  <Luggage className="h-2.5 w-2.5" /> Equipaje Incluido
-                                </span>
-                              ) : (
-                                <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-semibold px-1.5 py-0.5 rounded">
-                                  Solo Art. Personal
-                                </span>
-                              )}
-                              <span className="text-[10px] font-mono text-slate-500">{flight.flightNumber}</span>
-                            </div>
-                          </div>
 
-                          {/* Outbound Leg */}
-                          <div className="flex items-center justify-between my-2 text-center bg-slate-900/40 p-2.5 rounded-lg border border-slate-900">
-                            <div>
-                              <span className="text-base font-bold text-white font-mono">{origin.code}</span>
-                              <span className="text-[10px] text-slate-400 block">{origin.city}</span>
-                            </div>
-                            <div className="flex-1 px-3 flex flex-col items-center">
-                              <span className="text-[9px] text-slate-500 font-mono">Ida: {flight.durationOutbound || flight.duration}</span>
-                              <div className="w-full flex items-center gap-1">
-                                <span className="h-1 w-1 rounded-full bg-slate-700"></span>
-                                <div className="h-[1px] bg-slate-800 flex-1"></div>
-                                <span className="h-1 w-1 rounded-full bg-slate-700"></span>
-                              </div>
-                              <span className="text-[9px] text-indigo-400 font-semibold">
-                                {flight.stops === 0 ? 'Directo' : `${flight.stops} escala(s)`}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-base font-bold text-white font-mono">{destination.code}</span>
-                              <span className="text-[10px] text-slate-400 block">{destination.city}</span>
-                            </div>
-                          </div>
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-indigo-500/10 rounded border border-indigo-500/20">
+                        <Icon name="luggage" className="h-4 w-4 text-indigo-400" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-200 block">Equipaje de Mano</span>
+                        <span className="text-[10px] text-slate-500 block">Incluir maleta de cabina de 10kg</span>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={hasHandLuggage} 
+                        onChange={(e) => {
+                          setHasHandLuggage(e.target.checked);
+                          addLog('SYS', `Política de equipaje de mano actualizada: ${e.target.checked ? 'Incluida' : 'Excluida (Solo artículo personal)'}`);
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-slate-950 peer-checked:after:border-slate-950"></div>
+                    </label>
+                  </div>
 
-                          {/* Return Leg (If Round-trip and exists) */}
-                          {isRoundTrip && (
-                            <div className="flex items-center justify-between my-2 text-center bg-indigo-950/10 p-2.5 rounded-lg border border-indigo-950/20">
-                              <div>
-                                <span className="text-base font-bold text-white font-mono">{destination.code}</span>
-                                <span className="text-[10px] text-slate-400 block">{destination.city}</span>
-                              </div>
-                              <div className="flex-1 px-3 flex flex-col items-center">
-                                <span className="text-[9px] text-slate-500 font-mono">Regreso: {flight.durationInbound || '11h 00m'}</span>
-                                <div className="w-full flex items-center gap-1">
-                                  <span className="h-1 w-1 rounded-full bg-slate-700"></span>
-                                  <div className="h-[1px] bg-indigo-900/30 flex-1"></div>
-                                  <span className="h-1 w-1 rounded-full bg-slate-700"></span>
-                                </div>
-                                <span className="text-[9px] text-indigo-400 font-semibold">
-                                  Regreso {flight.returnFlightNumber || 'R-Flight'}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-base font-bold text-white font-mono">{origin.code}</span>
-                                <span className="text-[10px] text-slate-400 block">{origin.city}</span>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="border-t border-slate-900/80 pt-3 mt-3 flex items-center justify-between">
-                            <div>
-                              <span className="text-lg font-bold text-emerald-400 font-mono">
-                                ${flight.price} <span className="text-[10px] text-slate-500">USD total ({passengers} pax)</span>
-                              </span>
-                            </div>
-                            
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleGenerateTTS(flight);
-                                }}
-                                disabled={audioLoading}
-                                title="Generar audiopresentación por IA"
-                                className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2 rounded-lg border border-slate-800 transition-all flex items-center justify-center"
-                              >
-                                {audioLoading ? (
-                                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-400" />
-                                ) : (
-                                  <Volume2 className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-
-                              <a 
-                                href={flight.bookingLink} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold text-[11px] transition-all flex items-center gap-1"
-                              >
-                                Comprar Directo <ExternalLink className="h-3 w-3" />
-                              </a>
-                            </div>
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800/80 mt-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                        <Icon name="sparkles" className="h-3.5 w-3.5 text-emerald-400" /> Búsqueda por IA Activa
+                      </span>
+                      <input 
+                        type="checkbox" 
+                        checked={useAI} 
+                        onChange={(e) => setUseAI(e.target.checked)}
+                        className="rounded text-emerald-500 bg-slate-950 border-slate-800 focus:ring-emerald-500"
+                      />
+                    </div>
+                    
+                    {useAI && (
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-[10px] font-mono text-slate-400 mb-1 flex items-center justify-between">
+                            <span>Gemini API Key</span>
+                            <span className="text-[9px] text-emerald-500 font-bold">Recomendado</span>
+                          </label>
+                          <div className="relative">
+                            <Icon name="key" className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-600" />
+                            <input 
+                              type="password" 
+                              placeholder="Ingresa clave Gemini para Búsqueda Global" 
+                              value={apiKey} 
+                              onChange={(e) => setApiKey(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 pl-8 pr-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-slate-400"
+                            />
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
 
-              {/* Dynamic Flight Helper panels */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
-                {/* Audio player */}
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5 mb-2">
-                      <Volume2 className="h-4 w-4 text-emerald-400" /> Audioguía de Viaje (IA)
-                    </h3>
-                    <p className="text-[11px] text-slate-400 mb-3">Explicación por síntesis de voz Gemini de tu tarifa, fechas y equipaje de mano.</p>
-                  </div>
-                  
-                  {audioUrl ? (
-                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center">
-                      <audio ref={audioRef} src={audioUrl} controls className="w-full h-8 bg-slate-950" />
-                    </div>
-                  ) : (
-                    <div className="text-center p-3 text-[10px] text-slate-500 border border-dashed border-slate-800 rounded-lg">
-                      Haz clic en el icono de bocina de tu vuelo preferido para generar audio explicativo.
-                    </div>
-                  )}
-                </div>
-
-                {/* Itinerary Planner */}
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between border-b border-slate-850 pb-2 mb-2">
-                      <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <Compass className="h-4 w-4 text-emerald-400" /> Itinerario Turístico (IA)
-                      </h3>
-                      {selectedFlight && (
-                        <button
-                          onClick={() => handleGenerateItinerary(selectedFlight)}
-                          disabled={itineraryLoading}
-                          className="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-1 rounded transition-all"
-                        >
-                          {itineraryLoading ? 'Analizando...' : 'Generar Guía de 3 Días'}
-                        </button>
-                      )}
-                    </div>
-
-                    {!selectedFlight ? (
-                      <div className="text-center py-4 text-slate-500 text-[10px]">
-                        <Info className="h-4 w-4 mx-auto mb-1 text-slate-600" />
-                        Selecciona un boleto arriba para habilitar la guía local con IA para {destination.city}.
-                      </div>
-                    ) : itineraryLoading ? (
-                      <div className="flex flex-col items-center justify-center py-4 text-center text-[10px] text-slate-400">
-                        <RefreshCw className="h-5 w-5 animate-spin text-indigo-400 mb-1.5" />
-                        <span>Consultando clima en tiempo real para {departureDate}...</span>
-                      </div>
-                    ) : itinerary ? (
-                      <div className="bg-slate-950 p-3 rounded-lg border border-slate-850 max-h-[140px] overflow-y-auto text-[10px] text-slate-300 whitespace-pre-line leading-relaxed">
-                        {itinerary}
-                      </div>
-                    ) : (
-                      <div className="text-center py-3 text-[10px] text-slate-400 border border-dashed border-slate-800 rounded-lg">
-                        Presiona "Generar Guía" para construir el plan turístico.
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                            Voz del Guía Turístico (TTS)
+                          </label>
+                          <select
+                            value={voiceSelected}
+                            onChange={(e) => setVoiceSelected(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none"
+                          >
+                            {PREBUILT_VOICES.map(v => (
+                              <option key={v.id} value={v.id}>{v.name}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
 
-              </div>
-
-              {/* Chat del Copiloto de Negociación */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                  <MessageSquare className="h-3.5 w-3.5 text-indigo-400" /> Copiloto de Negociación Tarifaria (Live Grounding)
-                </h4>
-                
-                <div className="bg-slate-950 rounded-lg border border-slate-850 p-2.5 h-36 overflow-y-auto text-[11px] space-y-2 mb-2 pr-1">
-                  {chatMessages.map((m, i) => (
-                    <div key={i} className={`p-2 rounded ${m.role === 'user' ? 'bg-indigo-950/40 text-slate-200 text-right font-medium' : 'bg-slate-900 text-slate-300'}`}>
-                      <span className="block text-[8px] text-slate-500 mb-0.5 uppercase tracking-wider font-bold">{m.role === 'user' ? 'Tú' : 'Copiloto de IA'}</span>
-                      {m.text}
-                    </div>
-                  ))}
-                  {chatLoading && (
-                    <div className="text-slate-500 italic text-[10px] flex items-center gap-1">
-                      <RefreshCw className="h-3 w-3 animate-spin" /> Analizando fluctuaciones de tarifas aéreas...
-                    </div>
-                  )}
-                </div>
-
-                <form onSubmit={handleChatSubmit} className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={`¿Conviene reservar de ${origin.code} a ${destination.code} para ${passengers} pax ${hasHandLuggage ? 'con maleta' : 'sin equipaje'}?`} 
-                    className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-sans"
-                  />
                   <button 
                     type="submit" 
-                    disabled={chatLoading}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded transition-all shrink-0"
+                    disabled={loading}
+                    className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 text-xs mt-1 font-sans"
                   >
-                    Preguntar
+                    {loading ? (
+                      <>
+                        <Icon name="refresh" className="h-4 w-4 animate-spin" /> Buscando ofertas reales...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="search" className="h-4 w-4" /> Buscar Ofertas de Vuelos
+                      </>
+                    )}
                   </button>
                 </form>
               </div>
 
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl text-xs">
+                <h3 className="font-bold text-white mb-2 flex items-center gap-1">
+                  <Icon name="trendingUp" className="h-3.5 w-3.5 text-emerald-400" /> FinOps Metrics & API Usage
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-slate-950 p-2.5 rounded border border-slate-800/50">
+                    <span className="text-slate-500 block text-[9px] uppercase font-bold">Gross Margin</span>
+                    <span className="text-md font-bold text-white font-mono">89.4%</span>
+                  </div>
+                  <div className="bg-slate-950 p-2.5 rounded border border-slate-800/50">
+                    <span className="text-slate-500 block text-[9px] uppercase font-bold">Costo por consulta</span>
+                    <span className="text-md font-bold text-emerald-400 font-mono">$0.0018 <span className="text-[9px] text-slate-500">USD</span></span>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                    <span>Cuota de API consumida</span>
+                    <span>{apiUsage.used} / {apiUsage.limit} Req</span>
+                  </div>
+                  <div className="w-full bg-slate-950 rounded-full h-1 border border-slate-800">
+                    <div 
+                      className="bg-emerald-500 h-1 rounded-full transition-all" 
+                      style={{ width: `${(apiUsage.used / apiUsage.limit) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
             </div>
-          )}
 
-          {/* Seguridad RLS Panel */}
-          {activeTab === 'security' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col gap-6">
-              <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-indigo-400" /> Panel de Seguridad Red Teaming & RLS
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Auditoría en tiempo real del aislamiento de base de datos a nivel de fila y mitigaciones de seguridad activa.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-950 p-5 rounded-xl border border-slate-800">
-                  <h3 className="font-bold text-slate-200 mb-3 flex items-center gap-1.5">
-                    <Lock className="h-4 w-4 text-emerald-400" /> Aislamiento de RLS Multitenant
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                    Cada llamada fuerza el contexto seguro del ID del tenant en la cabecera JWT, inyectándolo directamente a la sesión PostgreSQL antes de resolver la consulta.
-                  </p>
-                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 font-mono text-[11px] text-slate-300 leading-relaxed">
-                    ALTER TABLE flights ENABLE ROW LEVEL SECURITY; <br />
-                    CREATE POLICY tenant_isolation_policy ON flights <br />
-                    &nbsp;&nbsp;FOR ALL TO public <br />
-                    &nbsp;&nbsp;USING (tenant_id = current_setting('app.current_tenant'));
-                  </div>
-                </div>
-
-                <div className="bg-slate-950 p-5 rounded-xl border border-slate-800">
-                  <h3 className="font-bold text-slate-200 mb-3 flex items-center gap-1.5">
-                    <Terminal className="h-4 w-4 text-indigo-400" /> Mitigación OWASP Top 10
-                  </h3>
-                  <div className="space-y-3 text-xs">
-                    <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
-                      <span className="text-slate-400">A01:2021-Broken Access Control</span>
-                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Mitigado por RLS</span>
-                    </div>
-                    <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
-                      <span className="text-slate-400">A03:2021-Injection (XSS/SQLi)</span>
-                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Sanitización Whitelist</span>
-                    </div>
-                    <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
-                      <span className="text-slate-400">A05:2021-Security Misconfig</span>
-                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Headers CSP Estrictos</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Logs en tiempo real */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 font-mono">
-                    <Activity className="h-3.5 w-3.5 text-indigo-400 animate-pulse" /> Consola de Eventos de Seguridad & API
-                  </span>
-                  <button 
-                    onClick={() => setLogs([])}
-                    className="text-[10px] text-slate-500 hover:text-white underline"
-                  >
-                    Limpiar Logs
-                  </button>
-                </div>
-                
-                <div className="h-48 overflow-y-auto font-mono text-[11px] space-y-2 pr-2">
-                  {logs.map((log, index) => (
-                    <div key={index} className="flex gap-2 text-slate-400">
-                      <span className="text-slate-600">[{log.timestamp}]</span>
-                      <span className={`font-bold ${
-                        log.type === 'SEC' ? 'text-emerald-400' : 
-                        log.type === 'ERR' ? 'text-red-400' : 
-                        log.type === 'AI' ? 'text-cyan-400' : 'text-slate-400'
-                      }`}>
-                        [{log.type}]
+            {}
+            <div className="lg:col-span-7 flex flex-col gap-6">
+              
+              {activeTab === 'search' && (
+                <div className="flex flex-col gap-6 flex-1">
+                  
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                      <div>
+                        <h2 className="text-md font-bold text-white flex items-center gap-1.5">
+                          <Icon name="plane" className="h-4.5 w-4.5 text-emerald-400" /> Tarifas & Enlaces de Compra Directa
+                        </h2>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Vuelos desde {origin.city} hacia {destination.city} ({isRoundTrip ? 'Ida y Vuelta' : 'Solo Ida'}, {passengers} pax)
+                        </p>
+                      </div>
+                      <span className="text-xs font-mono text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                        {flights.length} Encontrados
                       </span>
-                      <span>{log.message}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Stripe Billing Panel */}
-          {activeTab === 'stripe' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col gap-6">
+                    {flights.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 my-auto min-h-[250px]">
+                        <div className="bg-slate-950 p-4 rounded-full border border-slate-800 mb-3">
+                          <Icon name="globe" className="h-8 w-8 text-slate-600" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-300">Esperando búsqueda de ruta</h3>
+                        <p className="text-xs text-slate-500 max-w-xs mt-1">
+                          Elige el origen y destino en el buscador inteligente para listar opciones directas de aerolíneas en tiempo real.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1">
+                        {flights.map((flight, idx) => {
+                          const isSelected = selectedFlight?.flightNumber === flight.flightNumber;
+                          return (
+                            <div 
+                              key={idx} 
+                              className={`bg-slate-950 border rounded-xl p-4 transition-all relative overflow-hidden group cursor-pointer ${
+                                isSelected ? 'border-emerald-500 shadow-emerald-500/5' : 'border-slate-800 hover:border-slate-700'
+                              }`}
+                              onClick={() => {
+                                setSelectedFlight(flight);
+                                setItinerary('');
+                              }}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="bg-slate-900 text-slate-300 px-2.5 py-0.5 rounded text-[11px] font-bold border border-slate-800 flex items-center gap-1.5">
+                                  <Icon name="sparkles" className="h-3 w-3 text-emerald-400" /> {flight.airline}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  {hasHandLuggage ? (
+                                    <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1">
+                                      <Icon name="luggage" className="h-2.5 w-2.5" /> Equipaje Incluido
+                                    </span>
+                                  ) : (
+                                    <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                                      Solo Art. Personal
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] font-mono text-slate-500">{flight.flightNumber}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between my-2 text-center bg-slate-900/40 p-2.5 rounded-lg border border-slate-900">
+                                <div>
+                                  <span className="text-base font-bold text-white font-mono">{origin.code}</span>
+                                  <span className="text-[10px] text-slate-400 block">{origin.city}</span>
+                                </div>
+                                <div className="flex-1 px-3 flex flex-col items-center">
+                                  <span className="text-[9px] text-slate-500 font-mono">Ida: {flight.durationOutbound || flight.duration}</span>
+                                  <div className="w-full flex items-center gap-1">
+                                    <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                    <div className="h-[1px] bg-slate-800 flex-1"></div>
+                                    <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                  </div>
+                                  <span className="text-[9px] text-indigo-400 font-semibold">
+                                    {flight.stops === 0 ? 'Directo' : `${flight.stops} escala(s)`}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-base font-bold text-white font-mono">{destination.code}</span>
+                                  <span className="text-[10px] text-slate-400 block">{destination.city}</span>
+                                </div>
+                              </div>
+
+                              {isRoundTrip && (
+                                <div className="flex items-center justify-between my-2 text-center bg-indigo-950/10 p-2.5 rounded-lg border border-indigo-950/20">
+                                  <div>
+                                    <span className="text-base font-bold text-white font-mono">{destination.code}</span>
+                                    <span className="text-[10px] text-slate-400 block">{destination.city}</span>
+                                  </div>
+                                  <div className="flex-1 px-3 flex flex-col items-center">
+                                    <span className="text-[9px] text-slate-500 font-mono">Regreso: {flight.durationInbound || '11h 00m'}</span>
+                                    <div className="w-full flex items-center gap-1">
+                                      <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                      <div className="h-[1px] bg-indigo-900/30 flex-1"></div>
+                                      <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                    </div>
+                                    <span className="text-[9px] text-indigo-400 font-semibold">
+                                      Regreso {flight.returnFlightNumber || 'R-Flight'}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-base font-bold text-white font-mono">{origin.code}</span>
+                                    <span className="text-[10px] text-slate-400 block">{origin.city}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="border-t border-slate-900/80 pt-3 mt-3 flex items-center justify-between">
+                                <div>
+                                  <span className="text-lg font-bold text-emerald-400 font-mono">
+                                    ${flight.price} <span className="text-[10px] text-slate-500">USD total ({passengers} pax)</span>
+                                  </span>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleGenerateTTS(flight);
+                                    }}
+                                    disabled={audioLoading}
+                                    title="Generar audiopresentación por IA"
+                                    className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2 rounded-lg border border-slate-800 transition-all flex items-center justify-center"
+                                  >
+                                    {audioLoading ? (
+                                      <Icon name="refresh" className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                                    ) : (
+                                      <Icon name="volume" className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+
+                                  <a 
+                                    href={flight.bookingLink} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold text-[11px] transition-all flex items-center gap-1"
+                                  >
+                                    Comprar Directo <Icon name="external" className="h-3 w-3" />
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-xs font-bold text-white flex items-center gap-1.5 mb-2">
+                          <Icon name="volume" className="h-4 w-4 text-emerald-400" /> Audioguía de Viaje (IA)
+                        </h3>
+                        <p className="text-[11px] text-slate-400 mb-3">Explicación por síntesis de voz Gemini de tu tarifa, fechas y equipaje de mano.</p>
+                      </div>
+                      
+                      {audioUrl ? (
+                        <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center">
+                          <audio ref={audioRef} src={audioUrl} controls className="w-full h-8 bg-slate-950" />
+                        </div>
+                      ) : (
+                        <div className="text-center p-3 text-[10px] text-slate-500 border border-dashed border-slate-800 rounded-lg">
+                          Haz clic en el icono de bocina de tu vuelo preferido para generar audio explicativo.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2">
+                          <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <Icon name="compass" className="h-4 w-4 text-emerald-400" /> Itinerario Turístico (IA)
+                          </h3>
+                          {selectedFlight && (
+                            <button
+                              onClick={() => handleGenerateItinerary(selectedFlight)}
+                              disabled={itineraryLoading}
+                              className="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-1 rounded transition-all"
+                            >
+                              {itineraryLoading ? 'Analizando...' : 'Generar Guía de 3 Días'}
+                            </button>
+                          )}
+                        </div>
+
+                        {!selectedFlight ? (
+                          <div className="text-center py-4 text-slate-500 text-[10px]">
+                            <Icon name="info" className="h-4 w-4 mx-auto mb-1 text-slate-600" />
+                            Selecciona un boleto arriba para habilitar la guía local con IA para {destination.city}.
+                          </div>
+                        ) : itineraryLoading ? (
+                          <div className="flex flex-col items-center justify-center py-4 text-center text-[10px] text-slate-400">
+                            <Icon name="refresh" className="h-5 w-5 animate-spin text-indigo-400 mb-1.5" />
+                            <span>Consultando clima en tiempo real para {departureDate}...</span>
+                          </div>
+                        ) : itinerary ? (
+                          <div className="bg-slate-950 p-3 rounded-lg border border-slate-850 max-h-[140px] overflow-y-auto text-[10px] text-slate-300 whitespace-pre-line leading-relaxed">
+                            {itinerary}
+                          </div>
+                        ) : (
+                          <div className="text-center py-3 text-[10px] text-slate-400 border border-dashed border-slate-800 rounded-lg">
+                            Presiona "Generar Guía" para construir el plan turístico.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <Icon name="message" className="h-3.5 w-3.5 text-indigo-400" /> Copiloto de Negociación Tarifaria (Live Grounding)
+                    </h4>
+                    
+                    <div className="bg-slate-950 rounded-lg border border-slate-850 p-2.5 h-36 overflow-y-auto text-[11px] space-y-2 mb-2 pr-1">
+                      {chatMessages.map((m, i) => (
+                        <div key={i} className={`p-2 rounded ${m.role === 'user' ? 'bg-indigo-950/40 text-slate-200 text-right font-medium' : 'bg-slate-900 text-slate-300'}`}>
+                          <span className="block text-[8px] text-slate-500 mb-0.5 uppercase tracking-wider font-bold">{m.role === 'user' ? 'Tú' : 'Copiloto de IA'}</span>
+                          {m.text}
+                        </div>
+                      ))}
+                      {chatLoading && (
+                        <div className="text-slate-500 italic text-[10px] flex items-center gap-1">
+                          <Icon name="refresh" className="h-3 w-3 animate-spin" /> Analizando fluctuaciones de tarifas aéreas...
+                        </div>
+                      )}
+                    </div>
+
+                    <form onSubmit={handleChatSubmit} className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder={`¿Conviene reservar de ${origin.code} a ${destination.code} para ${passengers} pax ${hasHandLuggage ? 'con maleta' : 'sin equipaje'}?`} 
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-sans"
+                      />
+                      <button 
+                        type="submit" 
+                        disabled={chatLoading}
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded transition-all shrink-0"
+                      >
+                        Preguntar
+                      </button>
+                    </form>
+                  </div>
+
+                </div>
+              )}
+
+              {}
+              {activeTab === 'security' && (
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col gap-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Icon name="shield" className="h-5 w-5 text-indigo-400" /> Panel de Seguridad Red Teaming & RLS
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Auditoría en tiempo real del aislamiento de base de datos a nivel de fila y mitigaciones de seguridad activa.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-950 p-5 rounded-xl border border-slate-800">
+                      <h3 className="font-bold text-slate-200 mb-3 flex items-center gap-1.5">
+                        <Icon name="lock" className="h-4 w-4 text-emerald-400" /> Aislamiento de RLS Multitenant
+                      </h3>
+                      <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                        Cada llamada fuerza el contexto seguro del ID del tenant en la cabecera JWT, inyectándolo directamente a la sesión PostgreSQL antes de resolver la consulta.
+                      </p>
+                      <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 font-mono text-[11px] text-slate-300 leading-relaxed">
+                        ALTER TABLE flights ENABLE ROW LEVEL SECURITY; <br />
+                        CREATE POLICY tenant_isolation_policy ON flights <br />
+                        &nbsp;&nbsp;FOR ALL TO public <br />
+                        &nbsp;&nbsp;USING (tenant_id = current_setting('app.current_tenant'));
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-950 p-5 rounded-xl border border-slate-800">
+                      <h3 className="font-bold text-slate-200 mb-3 flex items-center gap-1.5">
+                        <Icon name="activity" className="h-4 w-4 text-indigo-400" /> Mitigación OWASP Top 10
+                      </h3>
+                      <div className="space-y-3 text-xs">
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
+                          <span className="text-slate-400">A01:2021-Broken Access Control</span>
+                          <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Mitigado por RLS</span>
+                        </div>
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
+                          <span className="text-slate-400">A03:2021-Injection (XSS/SQLi)</span>
+                          <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Sanitización Whitelist</span>
+                        </div>
+                        <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
+                          <span className="text-slate-400">A05:2021-Security Misconfig</span>
+                          <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Headers CSP Estrictos</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 rounded-xl border border-slate-800 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 font-mono">
+                        <Icon name="activity" className="h-3.5 w-3.5 text-indigo-400 animate-pulse" /> Consola de Eventos de Seguridad & API
+                      </span>
+                      <button 
+                        onClick={() => setLogs([])}
+                        className="text-[10px] text-slate-500 hover:text-white underline"
+                      >
+                        Limpiar Logs
+                      </button>
+                    </div>
+                    
+                    <div className="h-48 overflow-y-auto font-mono text-[11px] space-y-2 pr-2">
+                      {logs.map((log, index) => (
+                        <div key={index} className="flex gap-2 text-slate-400">
+                          <span className="text-slate-600">[{log.timestamp}]</span>
+                          <span className={`font-bold ${
+                            log.type === 'SEC' ? 'text-emerald-400' : 
+                            log.type === 'ERR' ? 'text-red-400' : 
+                            log.type === 'AI' ? 'text-cyan-400' : 'text-slate-400'
+                          }`}>
+                            [{log.type}]
+                          </span>
+                          <span>{log.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'stripe' && (
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col gap-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Icon name="dollar" className="h-5 w-5 text-emerald-400" /> Stripe Billing & Compliance Engine
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Simulación de integración de Stripe Tax/Avalara y planes de suscripción seguros para due diligence.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-300">Plan Light Starter</h3>
+                        <p className="text-slate-500 text-xs mt-1">Óptimo para buscadores ocasionales</p>
+                        <span className="text-2xl font-black text-white font-mono mt-4 block">$19<span className="text-xs font-normal text-slate-500"> /mes</span></span>
+                      </div>
+                      <button 
+                        onClick={() => addLog('SYS', 'Simulando redirección segura de Stripe Checkout para plan Starter (USD $19/mo)')}
+                        className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 py-2 rounded-lg text-xs font-bold transition-all"
+                      >
+                        Comprar con Stripe
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-950 p-5 rounded-xl border border-emerald-500/30 relative flex flex-col justify-between">
+                      <span className="absolute -top-2 right-4 bg-emerald-500 text-slate-950 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider font-mono">Popular</span>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-300">Plan Pro Executive</h3>
+                        <p className="text-slate-500 text-xs mt-1">Acceso ilimitado por IA con Grounding</p>
+                        <span className="text-2xl font-black text-white font-mono mt-4 block">$49<span className="text-xs font-normal text-slate-500"> /mes</span></span>
+                      </div>
+                      <button 
+                        onClick={() => addLog('SYS', 'Simulando redirección segura de Stripe Checkout para plan Pro (USD $49/mo)')}
+                        className="mt-6 w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-500/10"
+                      >
+                        Comprar con Stripe
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-300">Enterprise API Access</h3>
+                        <p className="text-slate-500 text-xs mt-1">Deep linking con RLS dedicado</p>
+                        <span className="text-2xl font-black text-white font-mono mt-4 block">$299<span className="text-xs font-normal text-slate-500"> /mes</span></span>
+                      </div>
+                      <button 
+                        onClick={() => addLog('SYS', 'Simulando redirección segura de Stripe Checkout para plan Enterprise Custom (USD $299/mo)')}
+                        className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 py-2 rounded-lg text-xs font-bold transition-all"
+                      >
+                        Comprar con Stripe
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-5 text-xs text-slate-300">
+                    <h4 className="font-bold text-white flex items-center gap-1.5 mb-2">
+                      <Icon name="check" className="h-4 w-4 text-emerald-400" /> Idempotencia y Firma Webhook Estricta
+                    </h4>
+                    <p className="leading-relaxed">
+                      Nuestra API para Webhooks de Stripe valida la firma HMAC del encabezado <code>Stripe-Signature</code> para prevenir usurpación de identidad. El sistema realiza un almacenamiento atómico en Redis usando la clave del evento para evitar doble aprovisionamiento de recursos ante reintentos de Stripe.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </main>
+
+          {}
+          <footer className="border-t border-slate-900 bg-slate-950 px-6 py-4 text-xs text-slate-500 mt-8">
+            <div className="max-w-7xl w-full mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
               <div>
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-emerald-400" /> Stripe Billing & Compliance Engine
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Simulación de integración de Stripe Tax/Avalara y planes de suscripción seguros para due diligence.
-                </p>
+                <p className="font-semibold text-slate-400">JetSaaS - Sovereign Engine Platform</p>
+                <p className="mt-0.5">Construido para soportar Due Diligence de Adquisición en Serie A. EBITDA Certificado.</p>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-300">Plan Light Starter</h3>
-                    <p className="text-slate-500 text-xs mt-1">Óptimo para buscadores ocasionales</p>
-                    <span className="text-2xl font-black text-white font-mono mt-4 block">$19<span className="text-xs font-normal text-slate-500"> /mes</span></span>
-                  </div>
-                  <button 
-                    onClick={() => addLog('SYS', 'Simulando redirección segura de Stripe Checkout para plan Starter (USD $19/mo)')}
-                    className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 py-2 rounded-lg text-xs font-bold transition-all"
-                  >
-                    Comprar con Stripe
-                  </button>
-                </div>
-
-                <div className="bg-slate-950 p-5 rounded-xl border border-emerald-500/30 relative flex flex-col justify-between">
-                  <span className="absolute -top-2 right-4 bg-emerald-500 text-slate-950 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider font-mono">Popular</span>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-300">Plan Pro Executive</h3>
-                    <p className="text-slate-500 text-xs mt-1">Acceso ilimitado por IA con Grounding</p>
-                    <span className="text-2xl font-black text-white font-mono mt-4 block">$49<span className="text-xs font-normal text-slate-500"> /mes</span></span>
-                  </div>
-                  <button 
-                    onClick={() => addLog('SYS', 'Simulando redirección segura de Stripe Checkout para plan Pro (USD $49/mo)')}
-                    className="mt-6 w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-500/10"
-                  >
-                    Comprar con Stripe
-                  </button>
-                </div>
-
-                <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-300">Enterprise API Access</h3>
-                    <p className="text-slate-500 text-xs mt-1">Deep linking con RLS dedicado</p>
-                    <span className="text-2xl font-black text-white font-mono mt-4 block">$299<span className="text-xs font-normal text-slate-500"> /mes</span></span>
-                  </div>
-                  <button 
-                    onClick={() => addLog('SYS', 'Simulando redirección segura de Stripe Checkout para plan Enterprise Custom (USD $299/mo)')}
-                    className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 py-2 rounded-lg text-xs font-bold transition-all"
-                  >
-                    Comprar con Stripe
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-5 text-xs text-slate-300">
-                <h4 className="font-bold text-white flex items-center gap-1.5 mb-2">
-                  <CheckCircle className="h-4 w-4 text-emerald-400" /> Idempotencia y Firma Webhook Estricta
-                </h4>
-                <p className="leading-relaxed">
-                  Nuestra API para Webhooks de Stripe valida la firma HMAC del encabezado <code>Stripe-Signature</code> para prevenir usurpación de identidad. El sistema realiza un almacenamiento atómico en Redis usando la clave del evento para evitar doble aprovisionamiento de recursos ante reintentos de Stripe.
-                </p>
+              <div className="flex gap-6">
+                <a href="#privacy" className="hover:text-white transition-all">Política de Privacidad</a>
+                <a href="#terms" className="hover:text-white transition-all">Términos del Servicio</a>
+                <a href="#compliance" className="hover:text-white transition-all">Cumplimiento GDPR</a>
               </div>
             </div>
-          )}
+          </footer>
 
         </div>
-      </main>
+      );
+    }
 
-      {/* Footer view */}
-      <footer className="border-t border-slate-900 bg-slate-950 px-6 py-4 text-xs text-slate-500">
-        <div className="max-w-7xl w-full mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div>
-            <p className="font-semibold text-slate-400">JetSaaS - Sovereign Engine Platform</p>
-            <p className="mt-0.5">Construido para soportar Due Diligence de Adquisición en Serie A. EBITDA Certificado.</p>
-          </div>
-          <div className="flex gap-6">
-            <a href="#privacy" className="hover:text-white transition-all">Política de Privacidad</a>
-            <a href="#terms" className="hover:text-white transition-all">Términos del Servicio</a>
-            <a href="#compliance" className="hover:text-white transition-all">Cumplimiento GDPR</a>
-          </div>
-        </div>
-      </footer>
-
-    </div>
-  );
-}
+    // Renderizar aplicación utilizando ReactDOM v18 compatible con browsers modernos
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
+</body>
+</html>
