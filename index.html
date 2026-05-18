@@ -258,14 +258,23 @@
       try {
         const response = await fetch(url, options);
         if (!response.ok) {
-          if (response.status === 429 && retries > 0) {
-            await new Promise(res => setTimeout(res, delay));
-            return fetchWithBackoff(url, options, retries - 1, delay * 2);
+          if (response.status === 403) {
+            throw new Error("API_KEY_INVALID");
+          }
+          if (response.status === 429) {
+            if (retries > 0) {
+              await new Promise(res => setTimeout(res, delay));
+              return fetchWithBackoff(url, options, retries - 1, delay * 2);
+            }
+            throw new Error("RATE_LIMIT_EXCEEDED");
           }
           throw new Error(`Error HTTP: ${response.status}`);
         }
         return response;
       } catch (err) {
+        if (err.message === "API_KEY_INVALID" || err.message === "RATE_LIMIT_EXCEEDED") {
+          throw err; // No reintentar indefinidamente si la clave está bloqueada o superó límite
+        }
         if (retries > 0) {
           await new Promise(res => setTimeout(res, delay));
           return fetchWithBackoff(url, options, retries - 1, delay * 2);
@@ -403,6 +412,11 @@
         const setSearching = type === 'origin' ? setSearchingOrigin : setSearchingDestination;
         const setSuggestions = type === 'origin' ? setOriginSuggestions : setDestinationSuggestions;
 
+        if (!apiKey) {
+          showToast('Ingresa una Gemini API Key válida en el formulario para realizar búsquedas globales por IA.', 'warning');
+          return;
+        }
+
         setSearching(true);
         addLog('AI', `Buscando aeropuertos globales en tiempo real para: "${query}"`);
 
@@ -420,7 +434,7 @@
         If no actual airports exist for that query, return an empty array [].`;
 
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
           const payload = {
             contents: [{ parts: [{ text: prompt }] }],
             systemInstruction: {
@@ -449,8 +463,17 @@
             throw new Error('Formato de respuesta incorrecto');
           }
         } catch (err) {
-          addLog('ERR', `Error de búsqueda de aeropuertos: ${err.message}.`);
-          showToast('No se pudo completar la búsqueda global de aeropuertos por IA. Utilice la lista local.', 'error');
+          let errorMsg = err.message;
+          if (err.message === "API_KEY_INVALID") {
+            errorMsg = "API Key de Gemini inválida o sin permisos (403)";
+            showToast('API Key inválida o bloqueada. Revisa la consola o ingresa una clave correcta.', 'error');
+          } else if (err.message === "RATE_LIMIT_EXCEEDED") {
+            errorMsg = "Límite de cuota de API excedido (429)";
+            showToast('Límite de solicitudes de API de Gemini superado (Demasiadas peticiones).', 'error');
+          } else {
+            showToast('No se pudo completar la búsqueda por IA. Inténtalo más tarde.', 'error');
+          }
+          addLog('ERR', `Error de búsqueda de aeropuertos: ${errorMsg}.`);
         } finally {
           setSearching(false);
         }
@@ -501,6 +524,14 @@
         }
 
         if (useAI) {
+          if (!apiKey) {
+            addLog('WRN', 'API Key ausente. Activando failover determinista local instantáneo.');
+            showToast('Búsqueda local activada. Ingresa tu API Key en el panel izquierdo para usar IA real.', 'info');
+            executeDeterministicFallback(cleanOrigin, cleanDestination);
+            setLoading(false);
+            return;
+          }
+
           addLog('AI', 'Consultando tarifas aéreas directas en tiempo real con Google Search...');
           
           const prompt = `Find actual commercial flight options from ${cleanOrigin} to ${cleanDestination}. 
@@ -527,7 +558,7 @@
           ]`;
 
           try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
             const payload = {
               contents: [{ parts: [{ text: prompt }] }],
               tools: [{ "google_search": {} }],
@@ -560,8 +591,17 @@
             }
 
           } catch (err) {
-            addLog('WRN', `Activando failover determinista de vuelos por límites de API o clave ausente.`);
-            showToast('Utilizando motor local de tarifas por falta de API Key o cuota.', 'warning');
+            let errorMsg = err.message;
+            if (err.message === "API_KEY_INVALID") {
+              errorMsg = "API Key incorrecta (403)";
+              showToast('La API Key ingresada no es válida. Cambiando a búsqueda offline.', 'warning');
+            } else if (err.message === "RATE_LIMIT_EXCEEDED") {
+              errorMsg = "Cuota excedida (429)";
+              showToast('Límite de solicitudes Gemini superado. Cambiando a búsqueda offline.', 'warning');
+            } else {
+              showToast('Error al conectar con la IA de Gemini. Usando motor local.', 'warning');
+            }
+            addLog('WRN', `Activando failover determinista de vuelos por error de red/cuota: ${errorMsg}`);
             executeDeterministicFallback(cleanOrigin, cleanDestination);
           }
         } else {
@@ -612,6 +652,11 @@
       };
 
       const handleGenerateTTS = async (flight) => {
+        if (!apiKey) {
+          showToast('Ingresa tu Gemini API Key en el menú izquierdo para generar audioguías de voz.', 'warning');
+          return;
+        }
+
         setAudioLoading(true);
         if (audioUrl) {
           URL.revokeObjectURL(audioUrl);
@@ -665,13 +710,18 @@
           }
         } catch (err) {
           addLog('ERR', `Fallo al generar TTS: ${err.message}.`);
-          showToast('Error al procesar el TTS de Gemini. Revisa tu clave API.', 'error');
+          showToast('Error al procesar el TTS de Gemini. Revisa que tu clave sea correcta.', 'error');
         } finally {
           setAudioLoading(false);
         }
       };
 
       const handleGenerateItinerary = async (flight) => {
+        if (!apiKey) {
+          showToast('Por favor, ingresa tu Gemini API Key en el panel izquierdo para generar itinerarios.', 'warning');
+          return;
+        }
+
         setItineraryLoading(true);
         setItinerary('');
         addLog('AI', `Generando itinerario de 3 días para ${destination.city} filtrando clima para ${departureDate}...`);
@@ -687,7 +737,7 @@
         Include active tourist hot-spots, verified places to eat, and seasonal warnings for mid-2026. Keep it structured in clean Markdown with H3 headings for Day 1, Day 2, and Day 3. Avoid long intros.`;
 
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
           const payload = {
             contents: [{ parts: [{ text: prompt }] }],
             tools: [{ "google_search": {} }],
@@ -723,6 +773,11 @@
         e.preventDefault();
         if (!chatInput.trim()) return;
 
+        if (!apiKey) {
+          showToast('Ingresa tu Gemini API Key en el menú izquierdo para interactuar con el copiloto.', 'warning');
+          return;
+        }
+
         const userMsg = chatInput;
         setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
         setChatInput('');
@@ -741,7 +796,7 @@
         Analyze fare trends, carry-on fees, and advise if they should buy now or wait. Keep response to 2 short paragraphs.`;
 
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
           const payload = {
             contents: [{ parts: [{ text: prompt }] }],
             tools: [{ "google_search": {} }],
@@ -767,7 +822,7 @@
           }
         } catch (err) {
           addLog('ERR', `Error en chat del copiloto: ${err.message}`);
-          setChatMessages(prev => [...prev, { role: 'assistant', text: "No he podido conectar con el módulo de análisis de tarifas. En términos generales: te aconsejo reservar con un margen de 3 a 5 semanas para rutas continentales si viajas con equipaje de mano." }]);
+          setChatMessages(prev => [...prev, { role: 'assistant', text: "No he podido conectar con el módulo de análisis de tarifas por problemas de autenticación o cuota en tu clave de API." }]);
         } finally {
           setChatLoading(false);
         }
@@ -785,7 +840,7 @@
       return (
         <div className="flex flex-col min-h-screen justify-between bg-slate-950">
           
-          {}
+          {/* Header */}
           <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 w-full sm:w-auto">
               <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/30">
@@ -846,7 +901,7 @@
             </div>
           )}
 
-          {}
+          {/* Main Grid Layout */}
           <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             <div className="lg:col-span-5 flex flex-col gap-6">
@@ -1203,7 +1258,7 @@
 
             </div>
 
-            {}
+            {/* Right Display Area */}
             <div className="lg:col-span-7 flex flex-col gap-6">
               
               {activeTab === 'search' && (
@@ -1354,7 +1409,7 @@
                     )}
                   </div>
 
-                  {}
+                  {/* IA Assistant Sub-Panels */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col justify-between">
@@ -1404,7 +1459,7 @@
                             <span>Consultando clima en tiempo real para {departureDate}...</span>
                           </div>
                         ) : itinerary ? (
-                          <div className="bg-slate-950 p-3 rounded-lg border border-slate-850 max-h-[140px] overflow-y-auto text-[10px] text-slate-300 whitespace-pre-line leading-relaxed">
+                          <div className="bg-slate-950 p-3 rounded-lg border border-slate-850 max-h-[140px] overflow-y-auto text-[10px] text-slate-300 whitespace-pre-line leading-relaxed font-sans">
                             {itinerary}
                           </div>
                         ) : (
@@ -1457,7 +1512,7 @@
                 </div>
               )}
 
-              {}
+              {/* Tab Security */}
               {activeTab === 'security' && (
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col gap-6">
                   <div>
@@ -1538,6 +1593,7 @@
                 </div>
               )}
 
+              {/* Tab Stripe */}
               {activeTab === 'stripe' && (
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col gap-6">
                   <div>
@@ -1608,7 +1664,7 @@
             </div>
           </main>
 
-          {}
+          {/* Footer */}
           <footer className="border-t border-slate-900 bg-slate-950 px-6 py-4 text-xs text-slate-500 mt-8">
             <div className="max-w-7xl w-full mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
               <div>
