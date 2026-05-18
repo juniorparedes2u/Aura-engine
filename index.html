@@ -1,580 +1,1504 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aura Engine 2.0 - Validador de Vuelos</title>
-<style>
-  :root{
-    --bg:#0b0d12;--card:#121520;--text:#e7ecf3;--muted:#97a3b6;
-    --accent:#1abc9c;--accent2:#0e8c76;--accent3:#8b5cf6;--accent4:#ef4444;
-    --warn:#f59e0b;--good:#10b981;--border:rgba(255,255,255,0.06);
-    --shadow:0 10px 35px rgba(0,0,0,.4);
-  }
-  *{box-sizing:border-box}
-  body{
-    margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    background:radial-gradient(1200px 800px at 20% -10%,rgba(26,188,156,.12),transparent),
-               radial-gradient(1000px 700px at 110% 10%,rgba(139,92,246,.10),transparent),
-               var(--bg);
-    color:var(--text);min-height:100vh;
-  }
-  header{
-    position:sticky;top:0;z-index:40;background:rgba(11,13,18,.72);
-    backdrop-filter:saturate(1.2) blur(10px);border-bottom:1px solid var(--border);
-  }
-  .container{max-width:1100px;margin:0 auto;padding:22px}
-  h1{font-size:clamp(26px,4vw,38px);margin:0 0 6px}
-  .subtitle{color:var(--muted);margin:0 0 18px}
-  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
-  .col-5{grid-column:span 5}
-  .col-7{grid-column:span 7}
-  .col-12{grid-column:span 12}
-  @media(max-width:920px){.col-5,.col-7{grid-column:span 12}}
-  .card{
-    background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));
-    border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow);
-  }
-  .card h2{margin:0 0 12px;font-size:16px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
-  .field{margin-bottom:14px}
-  label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
-  input[type=text],input[type=date],input[type=number],select{
-    width:100%;background:rgba(255,255,255,.06);border:1px solid var(--border);
-    color:var(--text);padding:12px 12px;border-radius:12px;outline:none;font-size:14px;
-  }
-  input:focus,select:focus{border-color:var(--accent)}
-  .row{display:flex;gap:10px}
-  .row .field{flex:1}
-  .switches{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-  .chip{
-    background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted);
-    padding:8px 12px;border-radius:999px;font-size:13px;cursor:pointer;user-select:none;
-  }
-  .chip.active{background:rgba(26,188,156,.15);border-color:rgba(26,188,156,.5);color:#c8f6e8}
-  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-  button.primary{
-    background:linear-gradient(180deg,var(--accent),var(--accent2));color:#fff;border:0;
-    padding:12px 16px;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 8px 22px rgba(14,140,118,.35);
-  }
-  button.ghost{background:rgba(255,255,255,.06);color:var(--text);border:1px solid var(--border);padding:12px 16px;border-radius:12px;cursor:pointer}
-  .muted{color:var(--muted)}
-  .results{min-height:120px}
-  .flight-card{
-    background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;
-  }
-  .flight-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-  .flight-title{font-weight:800}
-  .badge{font-size:12px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);color:var(--muted)}
-  .badge.ok{background:rgba(16,185,129,.15);color:#a7f3d0}
-  .badge.warn{background:rgba(245,158,11,.15);color:#fde68a}
-  .badge.bad{background:rgba(239,68,68,.15);color:#fecaca}
-  .segments{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
-  .segment{background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:12px;padding:12px}
-  .segment .airports{font-weight:800}
-  .segment .meta{color:var(--muted);font-size:12px}
-  .verdict{
-    position:fixed;inset:0;z-index:50;display:none;place-items:center;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)
-  }
-  .verdict.open{display:grid}
-  .verdict-box{
-    max-width:720px;width:92%;max-height:86vh;overflow:auto;background:var(--card);border:1px solid var(--border);
-    border-radius:20px;padding:22px;box-shadow:var(--shadow);
-  }
-  .verdict-title{font-size:22px;margin:0 0 10px}
-  .verdict-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0}
-  .verdict-chip{padding:8px 12px;border-radius:999px;font-weight:700}
-  .chip-validated{background:rgba(16,185,129,.15);color:#a7f3d0}
-  .chip-conditional{background:rgba(245,158,11,.15);color:#fde68a}
-  .chip-rejected{background:rgba(239,68,68,.15);color:#fecaca}
-  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
-  th,td{border:1px solid var(--border);padding:10px;text-align:left}
-  th{background:rgba(255,255,255,.04);color:var(--muted);font-weight:600}
-  .pill{display:inline-block;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700}
-  .pill-trad{background:rgba(148,163,184,.12);color:#cbd5e1}
-  .pill-aura{background:rgba(139,92,246,.12);color:#ddd6fe}
-  .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-  .links a{
-    background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);
-    padding:10px 14px;border-radius:12px;text-decoration:none;font-size:13px;
-  }
-  .links a:hover{border-color:var(--accent)}
-  .toast{position:fixed;bottom:18px;right:18px;background:#0f172a;color:#e2e8f0;border:1px solid var(--border);padding:12px 16px;border-radius:12px;box-shadow:var(--shadow);transform:translateY(120%);opacity:0;transition:.3s ease}
-  .toast.show{transform:translateY(0);opacity:1}
-  .loading{display:none;align-items:center;gap:10px;margin-top:10px;color:var(--muted)}
-  .loading.open{display:flex}
-  .status{color:var(--accent);font-weight:700}
-</style>
-</head>
-<body>
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Plane, Search, Shield, DollarSign, Activity, Lock, 
+  RefreshCw, ExternalLink, Settings, TrendingUp, Users, 
+  CheckCircle, AlertTriangle, Key, ArrowRight, Database, 
+  HelpCircle, Sparkles, Terminal, Globe, Calendar, Briefcase,
+  Volume2, VolumeX, MessageSquare, Compass, Play, Pause, Landmark, Info, MapPin,
+  Luggage, ArrowLeftRight
+} from 'lucide-react';
 
-<header>
-  <div class="container">
-    <h1>Aura Engine 2.0</h1>
-    <div class="subtitle">Validador de Vuelos Internacionales con Recomendación de Estrategia de Compra</div>
-  </div>
-</header>
+const AIRPORTS = [
+  // Américas
+  { code: 'JFK', city: 'Nueva York', name: 'John F. Kennedy Intl', country: 'Estados Unidos' },
+  { code: 'LAX', city: 'Los Ángeles', name: 'Los Angeles Intl', country: 'Estados Unidos' },
+  { code: 'MIA', city: 'Miami', name: 'Miami Intl', country: 'Estados Unidos' },
+  { code: 'DFW', city: 'Dallas', name: 'Dallas/Fort Worth Intl', country: 'Estados Unidos' },
+  { code: 'MEX', city: 'Ciudad de México', name: 'Benito Juárez Intl', country: 'México' },
+  { code: 'CUN', city: 'Cancún', name: 'Cancún Intl', country: 'México' },
+  { code: 'MID', city: 'Mérida', name: 'Manuel Crescencio Rejón Intl', country: 'México' },
+  { code: 'BOG', city: 'Bogotá', name: 'El Dorado Intl', country: 'Colombia' },
+  { code: 'EZE', city: 'Buenos Aires', name: 'Ministro Pistarini', country: 'Argentina' },
+  { code: 'GRU', city: 'São Paulo', name: 'Guarulhos Intl', country: 'Brasil' },
+  { code: 'SCL', city: 'Santiago', name: 'Arturo Merino Benítez', country: 'Chile' },
+  { code: 'LIM', city: 'Lima', name: 'Jorge Chávez Intl', country: 'Perú' },
+  { code: 'YYZ', city: 'Toronto', name: 'Pearson Intl', country: 'Canadá' },
+  // Europa
+  { code: 'MAD', city: 'Madrid', name: 'Adolfo Suárez Barajas', country: 'España' },
+  { code: 'BCN', city: 'Barcelona', name: 'El Prat Airport', country: 'España' },
+  { code: 'LHR', city: 'Londres', name: 'Heathrow Airport', country: 'Reino Unido' },
+  { code: 'CDG', city: 'París', name: 'Charles de Gaulle', country: 'Francia' },
+  { code: 'FRA', city: 'Fráncfort', name: 'Frankfurt Airport', country: 'Alemania' },
+  { code: 'AMS', city: 'Ámsterdam', name: 'Schiphol Airport', country: 'Países Bajos' },
+  { code: 'FCO', city: 'Roma', name: 'Fiumicino Leonardo da Vinci', country: 'Italia' },
+  { code: 'IST', city: 'Estambul', name: 'Istanbul Airport', country: 'Turquía' },
+  // Asia & Medio Oriente
+  { code: 'DXB', city: 'Dubái', name: 'Dubai Intl', country: 'Emiratos Árabes' },
+  { code: 'SIN', city: 'Singapur', name: 'Changi Airport', country: 'Singapur' },
+  { code: 'NRT', city: 'Tokio', name: 'Narita Intl', country: 'Japón' },
+  { code: 'HND', city: 'Tokio', name: 'Haneda Airport', country: 'Japón' },
+  { code: 'HKG', city: 'Hong Kong', name: 'Hong Kong Intl', country: 'Hong Kong' },
+  { code: 'PEK', city: 'Pekín', name: 'Capital Intl', country: 'China' },
+  { code: 'ICN', city: 'Seúl', name: 'Incheon Intl', country: 'Corea del Sur' },
+  { code: 'DOH', city: 'Doha', name: 'Hamad Intl', country: 'Catar' },
+  // Oceanía & África
+  { code: 'SYD', city: 'Sídney', name: 'Kingsford Smith', country: 'Australia' },
+  { code: 'JNB', city: 'Johannesburgo', name: 'O.R. Tambo Intl', country: 'Sudáfrica' },
+  { code: 'CAI', city: 'Cairo', name: 'Cairo Intl', country: 'Egipto' }
+];
 
-<div class="container" style="margin-top:18px">
-  <div class="grid">
-    <div class="col-5">
-      <div class="card">
-        <h2>Parámetros del viaje</h2>
-        <div class="row">
-          <div class="field">
-            <label>Origen (Aeropuerto o Ciudad)</label>
-            <input type="text" id="originInput" placeholder="Ej: Madrid (MAD)">
-            <div id="originSuggestions" style="margin-top:6px"></div>
+const PREBUILT_VOICES = [
+  { id: 'Zephyr', name: 'Zephyr (Bright)', description: 'Voz alegre y brillante ideal para turismo' },
+  { id: 'Puck', name: 'Puck (Upbeat)', description: 'Estilo optimista y dinámico' },
+  { id: 'Charon', name: 'Charon (Informative)', description: 'Tono corporativo y profesional' },
+  { id: 'Callirrhoe', name: 'Callirrhoe (Easy-going)', description: 'Tono relajado y natural' }
+];
+
+function base64ToArrayBuffer(base64) {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function writeString(view, offset, string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
+
+function pcmToWav(pcm16Array, sampleRate) {
+  const buffer = new ArrayBuffer(44 + pcm16Array.length * 2);
+  const view = new DataView(buffer);
+  
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + pcm16Array.length * 2, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // Linear PCM
+  view.setUint16(22, 1, true); // Mono channel
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // Byte rate
+  view.setUint16(32, 2, true); // Block align
+  view.setUint16(34, 16, true); // 16 bits
+  writeString(view, 36, 'data');
+  view.setUint32(40, pcm16Array.length * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < pcm16Array.length; i++, offset += 2) {
+    view.setInt16(offset, pcm16Array[i], true);
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      if (response.status === 429 && retries > 0) {
+        await new Promise(res => setTimeout(res, delay));
+        return fetchWithBackoff(url, options, retries - 1, delay * 2);
+      }
+      throw new Error(`Error HTTP: ${response.status}`);
+    }
+    return response;
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(res => setTimeout(res, delay));
+      return fetchWithBackoff(url, options, retries - 1, delay * 2);
+    }
+    throw err;
+  }
+}
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('search');
+  const [tenant, setTenant] = useState('enterprise_corp');
+  
+  // State de Aeropuertos con Autocompletado Global
+  const [origin, setOrigin] = useState({ code: 'MEX', city: 'Ciudad de México', name: 'Benito Juárez Intl', country: 'México' });
+  const [destination, setDestination] = useState({ code: 'MAD', city: 'Madrid', name: 'Adolfo Suárez Barajas', country: 'España' });
+  
+  const [originInput, setOriginInput] = useState('MEX - Ciudad de México');
+  const [destinationInput, setDestinationInput] = useState('MAD - Madrid');
+  
+  const [originSuggestions, setOriginSuggestions] = useState([]);
+  const [destinationSuggestions, setDestinationSuggestions] = useState([]);
+  
+  const [searchingOrigin, setSearchingOrigin] = useState(false);
+  const [searchingDestination, setSearchingDestination] = useState(false);
+  
+  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
+  const [showDestDropdown, setShowDestDropdown] = useState(false);
+
+  // Parámetros Extendidos del Vuelo (Ida, Regreso, Pasajeros, Equipaje de Mano)
+  const [isRoundTrip, setIsRoundTrip] = useState(true);
+  const [departureDate, setDepartureDate] = useState('2026-07-15');
+  const [returnDate, setReturnDate] = useState('2026-07-22');
+  const [passengers, setPassengers] = useState(1);
+  const [hasHandLuggage, setHasHandLuggage] = useState(true);
+
+  const [budget, setBudget] = useState(1500);
+  const [loading, setLoading] = useState(false);
+  const [flights, setFlights] = useState([]);
+  const [useAI, setUseAI] = useState(true);
+  const [apiKey, setApiKey] = useState('');
+  
+  // State de alertas y modales
+  const [alertMsg, setAlertMsg] = useState(null);
+
+  // State del Itinerario Inteligente
+  const [selectedFlight, setSelectedFlight] = useState(null);
+  const [itinerary, setItinerary] = useState('');
+  const [itineraryLoading, setItineraryLoading] = useState(false);
+  
+  // State de Reproducción de Audio
+  const [voiceSelected, setVoiceSelected] = useState('Zephyr');
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const audioRef = useRef(null);
+
+  // State del Copiloto de Tarifas
+  const [chatMessages, setChatMessages] = useState([
+    { role: 'assistant', text: '¡Hola! Soy tu Copiloto de Negociación de Tarifas. ¿Tienes dudas de si comprar ahora o esperar a que bajen los precios para tu ruta con equipaje o de ida y vuelta?' }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // Consola de Auditoría y Seguridad
+  const [logs, setLogs] = useState([
+    { timestamp: new Date().toLocaleTimeString(), type: 'SEC', message: 'Inicializando aislamiento lógico RLS para Tenant ID: enterprise_corp' },
+    { timestamp: new Date().toLocaleTimeString(), type: 'SYS', message: 'Cargando motor híbrido de aeropuertos globales.' }
+  ]);
+
+  // Métricas SaaS de Simulación
+  const [mrr, setMrr] = useState(15420);
+  const [ebitda, setEbitda] = useState(84.1);
+  const [apiUsage, setApiUsage] = useState({ used: 458, limit: 10000 });
+
+  const addLog = (type, message) => {
+    setLogs(prev => [{ timestamp: new Date().toLocaleTimeString(), type, message }, ...prev].slice(0, 30));
+  };
+
+  const showToast = (message, type = 'info') => {
+    setAlertMsg({ text: message, type });
+    setTimeout(() => setAlertMsg(null), 6000);
+  };
+
+  const sanitizeInput = (val) => {
+    const upper = val.toUpperCase().trim();
+    if (/^[A-Z]{3}$/.test(upper)) {
+      return upper;
+    }
+    return null;
+  };
+
+  const generateDeepLink = (from, to, deptDate, retDate, carrierCode, roundTrip, numPax) => {
+    const formattedDept = deptDate.replace(/-/g, '');
+    const formattedRet = retDate ? retDate.replace(/-/g, '') : '';
+    const carrierClean = carrierCode.toUpperCase();
+    const tripTypeString = roundTrip ? "RoundTrip" : "OneWay";
+
+    if (carrierClean.includes('AM') || carrierClean.includes('AEROMÉXICO')) {
+      return `https://www.aeromexico.com/es-mx/reserva/vuelos?from=${from}&to=${to}&departDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&adults=${numPax}`;
+    } else if (carrierClean.includes('IB') || carrierClean.includes('IBERIA')) {
+      return `https://www.iberia.com/es/comprar-vuelos/?market=ES&origin=${from}&destination=${to}&date=${formattedDept}${roundTrip ? `&returnDate=${formattedRet}` : ''}&adults=${numPax}`;
+    } else if (carrierClean.includes('LH') || carrierClean.includes('LUFTHANSA')) {
+      return `https://www.lufthansa.com/es/es/flights/${from}-${to}?departureDate=${deptDate}${roundTrip ? `&returnDate=${retDate}` : ''}&passengers=${numPax}`;
+    } else if (carrierClean.includes('AF') || carrierClean.includes('AIR FRANCE')) {
+      return `https://wwws.airfrance.es/search/offers?bookingFlow=REVENUE&cabinClass=ECONOMY&destination=${to}&origin=${from}&pc=${numPax}&travelDate=${deptDate}`;
+    }
+    
+    // Fallback universal a Google Flights estructurado
+    const paxParam = numPax > 1 ? `${numPax}%20passengers` : '1%20passenger';
+    const datesQuery = roundTrip ? `from%20${deptDate}%20to%20${retDate}` : `on%20${deptDate}`;
+    return `https://www.google.com/travel/flights?q=Flights%20from%20${from}%20to%20${to}%20${datesQuery}%20${paxParam}%20${tripTypeString}`;
+  };
+
+  const handleAirportInputChange = (val, type) => {
+    if (type === 'origin') {
+      setOriginInput(val);
+      setShowOriginDropdown(true);
+      const filtered = AIRPORTS.filter(ap => 
+        ap.code.toLowerCase().includes(val.toLowerCase()) ||
+        ap.city.toLowerCase().includes(val.toLowerCase()) ||
+        ap.name.toLowerCase().includes(val.toLowerCase()) ||
+        ap.country.toLowerCase().includes(val.toLowerCase())
+      ).slice(0, 5);
+      setOriginSuggestions(filtered);
+    } else {
+      setDestinationInput(val);
+      setShowDestDropdown(true);
+      const filtered = AIRPORTS.filter(ap => 
+        ap.code.toLowerCase().includes(val.toLowerCase()) ||
+        ap.city.toLowerCase().includes(val.toLowerCase()) ||
+        ap.name.toLowerCase().includes(val.toLowerCase()) ||
+        ap.country.toLowerCase().includes(val.toLowerCase())
+      ).slice(0, 5);
+      setDestinationSuggestions(filtered);
+    }
+  };
+
+  const handleGlobalAirportAISearch = async (type) => {
+    const query = type === 'origin' ? originInput : destinationInput;
+    if (!query || query.length < 2) {
+      showToast('Por favor, ingresa al menos 2 caracteres para buscar en la base de datos mundial.', 'warning');
+      return;
+    }
+
+    const setSearching = type === 'origin' ? setSearchingOrigin : setSearchingDestination;
+    const setSuggestions = type === 'origin' ? setOriginSuggestions : setDestinationSuggestions;
+
+    setSearching(true);
+    addLog('AI', `Buscando aeropuertos globales en tiempo real para: "${query}"`);
+
+    const prompt = `Search for actual airports anywhere in the world matching "${query}". 
+    You MUST return a strictly clean JSON array representing actual commercial airports with correct 3-letter IATA codes.
+    Return EXACTLY this JSON structure and absolutely nothing else (no markdown wrappers, no backticks, no notes):
+    [
+      {
+        "code": "XYZ",
+        "city": "City Name",
+        "name": "Airport Official Name",
+        "country": "Country Name"
+      }
+    ]
+    If no actual airports exist for that query, return an empty array [].`;
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        systemInstruction: {
+          parts: [{ text: "Act as an ultra-fast global airport directory lookup API. Respond strictly with valid JSON. Double check that IATA codes are real and valid." }]
+        }
+      };
+
+      const response = await fetchWithBackoff(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const cleanedJsonText = textResponse.replace(/```json|```/gi, '').trim();
+      const parsedAirports = JSON.parse(cleanedJsonText);
+      
+      if (Array.isArray(parsedAirports)) {
+        setSuggestions(parsedAirports);
+        addLog('SYS', `Búsqueda global IA completada. ${parsedAirports.length} aeropuertos encontrados.`);
+        if (parsedAirports.length === 0) {
+          showToast('No se encontraron aeropuertos mundiales con esa búsqueda.', 'warning');
+        }
+      } else {
+        throw new Error('Formato de respuesta incorrecto');
+      }
+    } catch (err) {
+      addLog('ERR', `Error de búsqueda de aeropuertos: ${err.message}.`);
+      showToast('No se pudo completar la búsqueda global de aeropuertos por IA. Utilice la lista local.', 'error');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSelectAirport = (airport, type) => {
+    if (type === 'origin') {
+      setOrigin(airport);
+      setOriginInput(`${airport.code} - ${airport.city}`);
+      setShowOriginDropdown(false);
+      addLog('SYS', `Origen fijado: ${airport.code} (${airport.name})`);
+    } else {
+      setDestination(airport);
+      setDestinationInput(`${airport.code} - ${airport.city}`);
+      setShowDestDropdown(false);
+      addLog('SYS', `Destino fijado: ${airport.code} (${airport.name})`);
+    }
+  };
+
+  const handleFlightSearch = async (e) => {
+    if (e) e.preventDefault();
+    setLoading(true);
+    setSelectedFlight(null);
+    setItinerary('');
+    
+    const cleanOrigin = sanitizeInput(origin.code);
+    const cleanDestination = sanitizeInput(destination.code);
+
+    if (isRoundTrip && new Date(returnDate) < new Date(departureDate)) {
+      addLog('ERR', 'Fallo de Validación: La fecha de regreso es anterior a la fecha de salida.');
+      showToast('La fecha de regreso no puede ser anterior a la de salida.', 'error');
+      setLoading(false);
+      return;
+    }
+
+    addLog('SEC', `Auditando parámetros: Origen=${cleanOrigin}, Destino=${cleanDestination}, Ida=${departureDate}, Regreso=${isRoundTrip ? returnDate : 'N/A'}, Pasajeros=${passengers}, EquipajeMano=${hasHandLuggage ? 'Sí' : 'No'}`);
+
+    if (!cleanOrigin || !cleanDestination) {
+      showToast('Por favor, selecciona aeropuertos válidos.', 'error');
+      setLoading(false);
+      return;
+    }
+
+    if (cleanOrigin === cleanDestination) {
+      showToast('El origen y el destino no pueden ser el mismo.', 'error');
+      setLoading(false);
+      return;
+    }
+
+    if (useAI) {
+      addLog('AI', 'Consultando tarifas aéreas directas en tiempo real con Google Search...');
+      
+      const prompt = `Find actual commercial flight options from ${cleanOrigin} to ${cleanDestination}. 
+      Details:
+      - Departure Date: ${departureDate}
+      ${isRoundTrip ? `- Return Date: ${returnDate} (This is a Round-trip flight)` : '- One-way flight only'}
+      - Number of Passengers: ${passengers} (Ensure total prices calculated reflect ${passengers} passenger tickets)
+      - Hand Luggage (Carry-on): ${hasHandLuggage ? 'Included in fare' : 'Basic economy fare, no carry-on included (personal item only)'}
+      - Maximum total price budget for all passengers: ${budget} USD.
+
+      You MUST return a clean JSON array representing active airlines currently serving this route on these dates.
+      Return EXACTLY this JSON structure without any markdown wrappers or backticks:
+      [
+        {
+          "airline": "Name of Airline",
+          "flightNumber": "Outbound Flight designation",
+          "returnFlightNumber": "Return Flight designation or null",
+          "price": 620, 
+          "durationOutbound": "10h 30m",
+          "durationInbound": "10h 45m or null",
+          "stops": 0,
+          "bookingLink": "Direct URL to booking page or airline homepage"
+        }
+      ]`;
+
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+        const payload = {
+          contents: [{ parts: [{ text: prompt }] }],
+          tools: [{ "google_search": {} }],
+          systemInstruction: {
+            parts: [{ text: "Act as an ultra-high speed travel agency parser. Return strictly pure JSON arrays with no markdown formatting. Ensure prices are realistic and bookingLinks point to valid sites." }]
+          }
+        };
+
+        const response = await fetchWithBackoff(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        const cleanedJsonText = textResponse.replace(/```json|```/gi, '').trim();
+        const parsedFlights = JSON.parse(cleanedJsonText);
+        
+        if (Array.isArray(parsedFlights) && parsedFlights.length > 0) {
+          const structuralFlights = parsedFlights.map(f => ({
+            ...f,
+            bookingLink: f.bookingLink && f.bookingLink.startsWith('http') ? f.bookingLink : generateDeepLink(cleanOrigin, cleanDestination, departureDate, isRoundTrip ? returnDate : '', f.airline, isRoundTrip, passengers)
+          }));
+          setFlights(structuralFlights);
+          addLog('SYS', `Búsqueda IA completada. Encontrados ${structuralFlights.length} boletos.`);
+          setApiUsage(prev => ({ ...prev, used: prev.used + 1 }));
+        } else {
+          throw new Error('Formato JSON incorrecto');
+        }
+
+      } catch (err) {
+        addLog('WRN', `Activando failover determinista de vuelos por límites de API o clave ausente.`);
+        showToast('Utilizando motor local de tarifas por falta de API Key o cuota.', 'warning');
+        executeDeterministicFallback(cleanOrigin, cleanDestination);
+      }
+    } else {
+      addLog('SYS', 'Modo Local determinista activado.');
+      executeDeterministicFallback(cleanOrigin, cleanDestination);
+    }
+    setLoading(false);
+  };
+
+  const executeDeterministicFallback = (from, to) => {
+    const mockAirlines = [
+      { name: 'Iberia', code: 'IB', basePrice: 620, durationOutbound: '11h 15m', durationInbound: '11h 05m', stops: 0 },
+      { name: 'Aeroméxico', code: 'AM', basePrice: 710, durationOutbound: '11h 20m', durationInbound: '11h 10m', stops: 0 },
+      { name: 'Lufthansa', code: 'LH', basePrice: 850, durationOutbound: '14h 45m', durationInbound: '14h 20m', stops: 1 },
+      { name: 'United Airlines', code: 'UA', basePrice: 510, durationOutbound: '15h 10m', durationInbound: '15h 30m', stops: 1 }
+    ];
+
+    const results = mockAirlines.map((airline, idx) => {
+      const variance = Math.sin(idx + 1) * 80;
+      let calculatedPrice = airline.basePrice + variance;
+      
+      // Multiplicar por pasajeros
+      calculatedPrice = calculatedPrice * passengers;
+      
+      // Duplicar si es viaje redondo
+      if (isRoundTrip) {
+        calculatedPrice = calculatedPrice * 1.85; // Descuento de tarifa roundtrip
+      }
+
+      // Cargo de equipaje si se solicita
+      if (hasHandLuggage) {
+        calculatedPrice += (35 * passengers * (isRoundTrip ? 2 : 1));
+      }
+
+      const finalPrice = Math.round(calculatedPrice);
+
+      return {
+        airline: airline.name,
+        flightNumber: `${airline.code}${Math.floor(Math.random() * 800) + 100}`,
+        returnFlightNumber: isRoundTrip ? `${airline.code}${Math.floor(Math.random() * 800) + 100}` : null,
+        price: finalPrice,
+        durationOutbound: airline.durationOutbound,
+        durationInbound: isRoundTrip ? airline.durationInbound : null,
+        stops: airline.stops,
+        bookingLink: generateDeepLink(from, to, departureDate, isRoundTrip ? returnDate : '', airline.code, isRoundTrip, passengers)
+      };
+    }).filter(f => f.price <= budget);
+
+    setFlights(results);
+    addLog('SYS', `Failover completado. Encontradas ${results.length} opciones adaptadas para ${passengers} pasajero(s).`);
+  };
+
+  const handleGenerateTTS = async (flight) => {
+    setAudioLoading(true);
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    addLog('AI', `Invocando modelo gemini-2.5-flash-preview-tts para audio de vuelo...`);
+
+    const luggageText = hasHandLuggage ? 'with carry-on luggage included' : 'without hand luggage (personal item only)';
+    const tripText = isRoundTrip ? `round-trip journey returning on ${returnDate}` : 'one-way flight';
+    const spokenText = `Say cheerfully in a lively travel guide voice: Outstanding deal found! Fly from ${origin.city} to ${destination.city} with ${flight.airline}. This is a ${tripText} for ${passengers} traveler, ${luggageText}. Your total budget friendly price is ${flight.price} dollars. Excellent choice!`;
+
+    const payload = {
+      contents: [{ parts: [{ text: spokenText }] }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: voiceSelected }
+          }
+        }
+      }
+    };
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+      const response = await fetchWithBackoff(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      const part = result?.candidates?.[0]?.content?.parts?.[0];
+      const rawAudio = part?.inlineData?.data;
+      const mimeType = part?.inlineData?.mimeType;
+
+      if (rawAudio && mimeType && mimeType.startsWith("audio/")) {
+        const rateMatch = mimeType.match(/rate=(\d+)/);
+        const sampleRate = rateMatch ? parseInt(rateMatch[1], 10) : 24000;
+        
+        const pcmData = base64ToArrayBuffer(rawAudio);
+        const pcm16 = new Int16Array(pcmData);
+        const wavBlob = pcmToWav(pcm16, sampleRate);
+        const urlObj = URL.createObjectURL(wavBlob);
+        
+        setAudioUrl(urlObj);
+        addLog('SYS', `Audio de IA generado exitosamente. Frecuencia: ${sampleRate}Hz`);
+        showToast('Audioguía de vuelo lista.', 'success');
+      } else {
+        throw new Error("Respuesta de audio vacía o errónea");
+      }
+    } catch (err) {
+      addLog('ERR', `Fallo al generar TTS: ${err.message}.`);
+      showToast('Error al procesar el TTS de Gemini. Revisa tu clave API.', 'error');
+    } finally {
+      setAudioLoading(false);
+    }
+  };
+
+  const handleGenerateItinerary = async (flight) => {
+    setItineraryLoading(true);
+    setItinerary('');
+    addLog('AI', `Generando itinerario de 3 días para ${destination.city} filtrando clima para ${departureDate}...`);
+
+    const prompt = `Create a brief and premium 3-day travel itinerary for ${destination.city} (${destination.country}). 
+    Travel specifications:
+    - Outbound date: ${departureDate}
+    ${isRoundTrip ? `- Return date: ${returnDate}` : ''}
+    - Total passengers: ${passengers}
+    - Luggage constraints: ${hasHandLuggage ? 'Light luggage allowed' : 'Extremely light, personal item only'}
+    - Arriving with ${flight.airline}.
+
+    Include active tourist hot-spots, verified places to eat, and seasonal warnings for mid-2026. Keep it structured in clean Markdown with H3 headings for Day 1, Day 2, and Day 3. Avoid long intros.`;
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ "google_search": {} }],
+        systemInstruction: {
+          parts: [{ text: "Eres un conserje de viajes de lujo. Genera itinerarios precisos, basados en hechos reales, estructurados en formato markdown conciso y elegante." }]
+        }
+      };
+
+      const response = await fetchWithBackoff(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      const outputText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (outputText) {
+        setItinerary(outputText);
+        addLog('SYS', `Itinerario de viaje para ${destination.city} aprovisionado correctamente.`);
+      } else {
+        throw new Error("No se pudo obtener el texto");
+      }
+    } catch (err) {
+      addLog('ERR', `Fallo al redactar itinerario por IA: ${err.message}`);
+      setItinerary(`### ⚠️ Fallo al invocar la API de Gemini\n\n**Sugerencia rápida de contingencia para ${destination.city}:**\n- **Día 1:** Explora el centro histórico y museos principales de la ciudad.\n- **Día 2:** Recorrido gastronómico local con opción de ecoturismo urbano.\n- **Día 3:** Tour de souvenirs ligeros (ideal por tus límites de equipaje) y cena icónica.`);
+    } finally {
+      setItineraryLoading(false);
+    }
+  };
+
+  const handleChatSubmit = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    const userMsg = chatInput;
+    setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setChatInput('');
+    setChatLoading(true);
+    addLog('AI', 'Enviando consulta de negociación de tarifas al Copiloto de IA...');
+
+    const prompt = `The user asks: "${userMsg}". 
+    Flight details:
+    - Origin: ${origin.city} (${origin.code})
+    - Destination: ${destination.city} (${destination.code})
+    - Journey dates: Departure ${departureDate}${isRoundTrip ? ` and return ${returnDate}` : ' (One-way)'}
+    - Total passengers: ${passengers}
+    - Hand luggage: ${hasHandLuggage ? 'Carry-on bag included' : 'No carry-on luggage (basic)'}
+    - Budget: ${budget} USD.
+
+    Analyze fare trends, carry-on fees, and advise if they should buy now or wait. Keep response to 2 short paragraphs.`;
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ "google_search": {} }],
+        systemInstruction: {
+          parts: [{ text: "Act as a flight cost estimator and ticket negotiator. Give smart, data-driven advice based on live queries." }]
+        }
+      };
+
+      const response = await fetchWithBackoff(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+      const answer = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (answer) {
+        setChatMessages(prev => [...prev, { role: 'assistant', text: answer }]);
+        addLog('SYS', 'Análisis del Copiloto tarifario actualizado con éxito.');
+      } else {
+        throw new Error("Sin respuesta.");
+      }
+    } catch (err) {
+      addLog('ERR', `Error en chat del copiloto: ${err.message}`);
+      setChatMessages(prev => [...prev, { role: 'assistant', text: "No he podido conectar con el módulo de análisis de tarifas. En términos generales: te aconsejo reservar con un margen de 3 a 5 semanas para rutas continentales si viajas con equipaje de mano." }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setShowOriginDropdown(false);
+      setShowDestDropdown(false);
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col justify-between">
+      
+      {}
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/30">
+            <Plane className="h-6 w-6 text-emerald-400 animate-pulse" />
           </div>
-          <div class="field">
-            <label>Destino (Aeropuerto o Ciudad)</label>
-            <input type="text" id="destInput" placeholder="Ej: Tokio (NRT)">
-            <div id="destSuggestions" style="margin-top:6px"></div>
+          <div>
+            <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v2.6</span>
+            <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+              JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold">Roundtrip Pro</span>
+            </h1>
           </div>
         </div>
-        <div class="row">
-          <div class="field"><label>Fecha de salida</label><input type="date" id="depDate"></div>
-          <div class="field"><label>Fecha de regreso (opcional)</label><input type="date" id="retDate"></div>
+
+        <div className="flex flex-wrap items-center gap-3 justify-end w-full sm:w-auto">
+          <div className="hidden lg:flex items-center gap-4 bg-slate-950 px-4 py-2 rounded-lg border border-slate-800 text-xs font-mono">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+              <span className="text-slate-400">MRR:</span> <span className="text-white">${mrr.toLocaleString()} USD</span>
+            </div>
+            <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
+              <span className="text-slate-400">EBITDA:</span> <span className="text-emerald-400 font-bold">{ebitda}%</span>
+            </div>
+          </div>
+
+          <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
+            <button 
+              onClick={() => setActiveTab('search')} 
+              className={`px-3 py-1.5 rounded-md transition-all font-semibold ${activeTab === 'search' ? 'bg-emerald-500 text-slate-950 shadow font-bold' : 'text-slate-400 hover:text-white'}`}
+            >
+              Motor de Vuelos
+            </button>
+            <button 
+              onClick={() => setActiveTab('security')} 
+              className={`px-3 py-1.5 rounded-md transition-all font-semibold flex items-center gap-1.5 ${activeTab === 'security' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
+            >
+              <Shield className="h-3 w-3" /> Security
+            </button>
+            <button 
+              onClick={() => setActiveTab('stripe')} 
+              className={`px-3 py-1.5 rounded-md transition-all font-semibold flex items-center gap-1.5 ${activeTab === 'stripe' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
+            >
+              <DollarSign className="h-3 w-3" /> Stripe Sandbox
+            </button>
+          </div>
         </div>
-        <div class="row">
-          <div class="field"><label>Pasajeros</label><input type="number" id="pax" value="1" min="1" max="9"></div>
-          <div class="field"><label>Moneda</label>
-            <select id="currency">
-              <option value="USD">USD - Dólar</option>
-              <option value="EUR">EUR - Euro</option>
-              <option value="GBP">GBP - Libra</option>
-              <option value="COP">COP - Peso colombiano</option>
-              <option value="MXN">MXN - Peso mexicano</option>
+      </header>
+
+      {/* Alert toast display */}
+      {alertMsg && (
+        <div className="max-w-7xl mx-auto w-full px-6 mt-4">
+          <div className={`p-4 rounded-lg flex items-center gap-3 border ${
+            alertMsg.type === 'error' ? 'bg-red-950/40 border-red-800/80 text-red-200' :
+            alertMsg.type === 'warning' ? 'bg-amber-950/40 border-amber-800/80 text-amber-200' :
+            'bg-emerald-950/40 border-emerald-800/80 text-emerald-200'
+          }`}>
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <span className="text-xs font-medium">{alertMsg.text}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Viewport */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {}
+        <div className="lg:col-span-5 flex flex-col gap-6">
+          
+          {/* Logical Tenant boundary */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <Database className="h-3.5 w-3.5 text-indigo-400" /> Logical Tenant Boundary (RLS)
+              </label>
+              <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 font-bold">Active</span>
+            </div>
+            
+            <select 
+              value={tenant} 
+              onChange={(e) => {
+                setTenant(e.target.value);
+                addLog('SEC', `Conmutando contexto tenant. RLS purga caché. Nuevo Tenant: ${e.target.value}`);
+              }} 
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-indigo-500 font-mono text-slate-300"
+            >
+              <option value="enterprise_corp">Enterprise Corp (Tenant ID: TX_9082)</option>
+              <option value="personal_premium">Premium User (Tenant ID: TX_1240)</option>
+              <option value="public_free_tier">Public Tier (Tenant ID: TX_FREE_LIMIT)</option>
             </select>
           </div>
+
+          {/* Core Flight parameter Formulator */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl"></div>
+            
+            <h2 className="text-md font-bold text-white mb-4 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-emerald-400" /> Parámetros de Ruta Inteligente
+            </h2>
+
+            <form onSubmit={handleFlightSearch} className="flex flex-col gap-4">
+              
+              {/* Selector de Tipo de Viaje (Roundtrip vs Oneway) */}
+              <div className="bg-slate-950 p-1 rounded-lg border border-slate-800 flex text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRoundTrip(true);
+                    addLog('SYS', 'Tipo de viaje modificado a: Ida y Vuelta (Roundtrip)');
+                  }}
+                  className={`flex-1 py-1.5 rounded-md font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    isRoundTrip ? 'bg-slate-800 text-white border border-slate-700/60 font-bold' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5 text-emerald-400" /> Ida y Vuelta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRoundTrip(false);
+                    addLog('SYS', 'Tipo de viaje modificado a: Solo Ida (Oneway)');
+                  }}
+                  className={`flex-1 py-1.5 rounded-md font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    !isRoundTrip ? 'bg-slate-800 text-white border border-slate-700/60 font-bold' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Plane className="h-3.5 w-3.5 text-rose-400" /> Solo Ida
+                </button>
+              </div>
+
+              {/* Origin Airport autocomplete widget */}
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-400" /> Origen (Cualquier Ciudad o Aeropuerto)
+                </label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={originInput}
+                    onChange={(e) => handleAirportInputChange(e.target.value, 'origin')}
+                    onFocus={() => setShowOriginDropdown(true)}
+                    placeholder="Ej: Paris, JFK, Tokyo..."
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-emerald-500 text-white placeholder-slate-600 font-medium font-sans"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleGlobalAirportAISearch('origin')}
+                    disabled={searchingOrigin}
+                    title="Buscar aeropuertos en todo el mundo con IA"
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
+                  >
+                    {searchingOrigin ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+                    <span className="text-[10px] font-bold">Global IA</span>
+                  </button>
+                </div>
+
+                {/* Suggestions display box */}
+                {showOriginDropdown && (originSuggestions.length > 0 || searchingOrigin) && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800/60">
+                    {searchingOrigin ? (
+                      <div className="p-3 text-xs text-slate-400 flex items-center gap-2">
+                        <RefreshCw className="h-3 w-3 animate-spin text-emerald-400" />
+                        Buscando aeropuertos globales mediante IA...
+                      </div>
+                    ) : (
+                      originSuggestions.map((ap) => (
+                        <div
+                          key={ap.code}
+                          onClick={() => handleSelectAirport(ap, 'origin')}
+                          className="p-2.5 hover:bg-slate-800 cursor-pointer text-xs transition-all flex justify-between items-center"
+                        >
+                          <div>
+                            <span className="font-bold text-emerald-400 font-mono mr-2">{ap.code}</span>
+                            <span className="text-white font-medium">{ap.city}</span>
+                            <span className="text-slate-400 block text-[10px] mt-0.5">{ap.name}</span>
+                          </div>
+                          <span className="text-[10px] bg-slate-950 px-1.5 py-0.5 rounded text-slate-500 border border-slate-800 font-medium">{ap.country}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Destination Airport autocomplete widget */}
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
+                <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-rose-400" /> Destino (Cualquier Ciudad o Aeropuerto)
+                </label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={destinationInput}
+                    onChange={(e) => handleAirportInputChange(e.target.value, 'destination')}
+                    onFocus={() => setShowDestDropdown(true)}
+                    placeholder="Ej: Mérida, CDG, Cairo..."
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:border-emerald-500 text-white placeholder-slate-600 font-medium font-sans"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleGlobalAirportAISearch('destination')}
+                    disabled={searchingDestination}
+                    title="Buscar aeropuertos en todo el mundo con IA"
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-2 rounded-lg text-xs transition-all flex items-center gap-1.5 shrink-0"
+                  >
+                    {searchingDestination ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+                    <span className="text-[10px] font-bold">Global IA</span>
+                  </button>
+                </div>
+
+                {/* Suggestions display box */}
+                {showDestDropdown && (destinationSuggestions.length > 0 || searchingDestination) && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl max-h-56 overflow-y-auto divide-y divide-slate-800/60">
+                    {searchingDestination ? (
+                      <div className="p-3 text-xs text-slate-400 flex items-center gap-2">
+                        <RefreshCw className="h-3 w-3 animate-spin text-emerald-400" />
+                        Buscando aeropuertos globales mediante IA...
+                      </div>
+                    ) : (
+                      destinationSuggestions.map((ap) => (
+                        <div
+                          key={ap.code}
+                          onClick={() => handleSelectAirport(ap, 'destination')}
+                          className="p-2.5 hover:bg-slate-800 cursor-pointer text-xs transition-all flex justify-between items-center"
+                        >
+                          <div>
+                            <span className="font-bold text-emerald-400 font-mono mr-2">{ap.code}</span>
+                            <span className="text-white font-medium">{ap.city}</span>
+                            <span className="text-slate-400 block text-[10px] mt-0.5">{ap.name}</span>
+                          </div>
+                          <span className="text-[10px] bg-slate-950 px-1.5 py-0.5 rounded text-slate-500 border border-slate-800 font-medium">{ap.country}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Fecha de Ida y Vuelta */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5 text-emerald-400" /> Fecha de Ida
+                  </label>
+                  <input 
+                    type="date" 
+                    value={departureDate} 
+                    onChange={(e) => {
+                      setDepartureDate(e.target.value);
+                      addLog('SYS', `Nueva fecha de salida fijada: ${e.target.value}`);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-xs font-semibold mb-1 flex items-center gap-1 ${isRoundTrip ? 'text-slate-400' : 'text-slate-600'}`}>
+                    <Calendar className="h-3.5 w-3.5 text-rose-400" /> Fecha de Regreso
+                  </label>
+                  <input 
+                    type="date" 
+                    value={returnDate} 
+                    disabled={!isRoundTrip}
+                    onChange={(e) => {
+                      setReturnDate(e.target.value);
+                      addLog('SYS', `Nueva fecha de regreso fijada: ${e.target.value}`);
+                    }}
+                    className={`w-full bg-slate-950 border rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white ${
+                      isRoundTrip ? 'border-slate-800 opacity-100' : 'border-slate-900 opacity-40 cursor-not-allowed'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Pasajeros y Presupuesto Máximo */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                    <Users className="h-3.5 w-3.5 text-indigo-400" /> Pasajeros
+                  </label>
+                  <select
+                    value={passengers}
+                    onChange={(e) => {
+                      setPassengers(Number(e.target.value));
+                      addLog('SYS', `Cantidad de pasajeros actualizada a: ${e.target.value}`);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
+                      <option key={n} value={n}>{n} {n === 1 ? 'Persona' : 'Personas'}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                    <DollarSign className="h-3.5 w-3.5 text-emerald-400" /> Presupuesto Máx.
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-2 text-xs text-slate-500 font-bold">$</span>
+                    <input 
+                      type="number" 
+                      value={budget} 
+                      onChange={(e) => setBudget(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 pl-6 pr-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Toggle de Equipaje de Mano */}
+              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-500/10 rounded border border-indigo-500/20">
+                    <Luggage className="h-4 w-4 text-indigo-400" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-200 block">Equipaje de Mano</span>
+                    <span className="text-[10px] text-slate-500 block">Incluir maleta de cabina de 10kg</span>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={hasHandLuggage} 
+                    onChange={(e) => {
+                      setHasHandLuggage(e.target.checked);
+                      addLog('SYS', `Política de equipaje de mano actualizada: ${e.target.checked ? 'Incluida' : 'Excluida (Solo artículo personal)'}`);
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 peer-checked:after:bg-slate-950 peer-checked:after:border-slate-950"></div>
+                </label>
+              </div>
+
+              {/* Gemini Key Config & AI Selector */}
+              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800/80 mt-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-400" /> Búsqueda por IA Activa
+                  </span>
+                  <input 
+                    type="checkbox" 
+                    checked={useAI} 
+                    onChange={(e) => setUseAI(e.target.checked)}
+                    className="rounded text-emerald-500 bg-slate-950 border-slate-800 focus:ring-emerald-500"
+                  />
+                </div>
+                
+                {useAI && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="block text-[10px] font-mono text-slate-400 mb-1 flex items-center justify-between">
+                        <span>Gemini API Key</span>
+                        <span className="text-[9px] text-emerald-500 font-bold">Recomendado</span>
+                      </label>
+                      <div className="relative">
+                        <Key className="absolute left-2 top-2 h-3.5 w-3.5 text-slate-600" />
+                        <input 
+                          type="password" 
+                          placeholder="Ingresa clave Gemini para Búsqueda Global" 
+                          value={apiKey} 
+                          onChange={(e) => setApiKey(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1.5 pl-7 pr-2 text-xs focus:outline-none focus:border-emerald-500 font-mono text-slate-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                        Voz del Guía Turístico (TTS)
+                      </label>
+                      <select
+                        value={voiceSelected}
+                        onChange={(e) => setVoiceSelected(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded py-1 px-2 text-[11px] text-slate-300 focus:outline-none"
+                      >
+                        {PREBUILT_VOICES.map(v => (
+                          <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2.5 px-4 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10 text-xs mt-1 font-sans"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" /> Buscando ofertas reales...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4" /> Buscar Ofertas de Vuelos
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* FinOps metrics */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl text-xs">
+            <h3 className="font-bold text-white mb-2 flex items-center gap-1">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> FinOps Metrics & API Usage
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-slate-950 p-2.5 rounded border border-slate-800/50">
+                <span className="text-slate-500 block text-[9px] uppercase font-bold">Gross Margin</span>
+                <span className="text-md font-bold text-white font-mono">89.4%</span>
+              </div>
+              <div className="bg-slate-950 p-2.5 rounded border border-slate-800/50">
+                <span className="text-slate-500 block text-[9px] uppercase font-bold">Costo por consulta</span>
+                <span className="text-md font-bold text-emerald-400 font-mono">$0.0018 <span className="text-[9px] text-slate-500">USD</span></span>
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                <span>Cuota de API consumida</span>
+                <span>{apiUsage.used} / {apiUsage.limit} Req</span>
+              </div>
+              <div className="w-full bg-slate-950 rounded-full h-1 border border-slate-800">
+                <div 
+                  className="bg-emerald-500 h-1 rounded-full transition-all" 
+                  style={{ width: `${(apiUsage.used / apiUsage.limit) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+
         </div>
-        <div class="field">
-          <label>Equipaje</label>
-          <div class="switches" id="baggageOptions">
-            <div class="chip active" data-bag="carry-on">Solo Carry-on</div>
-            <div class="chip" data-bag="checked">1 Maleta documentada</div>
-            <div class="chip" data-bag="both">Carry-on + Documentada</div>
+
+        {}
+        <div className="lg:col-span-7 flex flex-col gap-6">
+          
+          {activeTab === 'search' && (
+            <div className="flex flex-col gap-6 flex-1">
+              
+              {/* Resultados de Vuelos */}
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                  <div>
+                    <h2 className="text-md font-bold text-white flex items-center gap-1.5">
+                      <Plane className="h-4.5 w-4.5 text-emerald-400" /> Tarifas & Enlaces de Compra Directa
+                    </h2>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Vuelos desde {origin.city} hacia {destination.city} ({isRoundTrip ? 'Ida y Vuelta' : 'Solo Ida'}, {passengers} pax)
+                    </p>
+                  </div>
+                  <span className="text-xs font-mono text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                    {flights.length} Encontrados
+                  </span>
+                </div>
+
+                {flights.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-8 my-auto min-h-[250px]">
+                    <div className="bg-slate-950 p-4 rounded-full border border-slate-800 mb-3">
+                      <Globe className="h-8 w-8 text-slate-600" />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-300">Esperando búsqueda de ruta</h3>
+                    <p className="text-xs text-slate-500 max-w-xs mt-1">
+                      Elige el origen y destino en el buscador inteligente para listar opciones directas de aerolíneas en tiempo real.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1">
+                    {flights.map((flight, idx) => {
+                      const isSelected = selectedFlight?.flightNumber === flight.flightNumber;
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`bg-slate-950 border rounded-xl p-4 transition-all relative overflow-hidden group cursor-pointer ${
+                            isSelected ? 'border-emerald-500 shadow-emerald-500/5' : 'border-slate-800 hover:border-slate-700'
+                          }`}
+                          onClick={() => {
+                            setSelectedFlight(flight);
+                            setItinerary('');
+                          }}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="bg-slate-900 text-slate-300 px-2.5 py-0.5 rounded text-[11px] font-bold border border-slate-800 flex items-center gap-1.5">
+                              <Sparkles className="h-3 w-3 text-emerald-400" /> {flight.airline}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {hasHandLuggage ? (
+                                <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1">
+                                  <Luggage className="h-2.5 w-2.5" /> Equipaje Incluido
+                                </span>
+                              ) : (
+                                <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                                  Solo Art. Personal
+                                </span>
+                              )}
+                              <span className="text-[10px] font-mono text-slate-500">{flight.flightNumber}</span>
+                            </div>
+                          </div>
+
+                          {/* Outbound Leg */}
+                          <div className="flex items-center justify-between my-2 text-center bg-slate-900/40 p-2.5 rounded-lg border border-slate-900">
+                            <div>
+                              <span className="text-base font-bold text-white font-mono">{origin.code}</span>
+                              <span className="text-[10px] text-slate-400 block">{origin.city}</span>
+                            </div>
+                            <div className="flex-1 px-3 flex flex-col items-center">
+                              <span className="text-[9px] text-slate-500 font-mono">Ida: {flight.durationOutbound || flight.duration}</span>
+                              <div className="w-full flex items-center gap-1">
+                                <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                <div className="h-[1px] bg-slate-800 flex-1"></div>
+                                <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                              </div>
+                              <span className="text-[9px] text-indigo-400 font-semibold">
+                                {flight.stops === 0 ? 'Directo' : `${flight.stops} escala(s)`}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-base font-bold text-white font-mono">{destination.code}</span>
+                              <span className="text-[10px] text-slate-400 block">{destination.city}</span>
+                            </div>
+                          </div>
+
+                          {/* Return Leg (If Round-trip and exists) */}
+                          {isRoundTrip && (
+                            <div className="flex items-center justify-between my-2 text-center bg-indigo-950/10 p-2.5 rounded-lg border border-indigo-950/20">
+                              <div>
+                                <span className="text-base font-bold text-white font-mono">{destination.code}</span>
+                                <span className="text-[10px] text-slate-400 block">{destination.city}</span>
+                              </div>
+                              <div className="flex-1 px-3 flex flex-col items-center">
+                                <span className="text-[9px] text-slate-500 font-mono">Regreso: {flight.durationInbound || '11h 00m'}</span>
+                                <div className="w-full flex items-center gap-1">
+                                  <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                  <div className="h-[1px] bg-indigo-900/30 flex-1"></div>
+                                  <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                </div>
+                                <span className="text-[9px] text-indigo-400 font-semibold">
+                                  Regreso {flight.returnFlightNumber || 'R-Flight'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-base font-bold text-white font-mono">{origin.code}</span>
+                                <span className="text-[10px] text-slate-400 block">{origin.city}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="border-t border-slate-900/80 pt-3 mt-3 flex items-center justify-between">
+                            <div>
+                              <span className="text-lg font-bold text-emerald-400 font-mono">
+                                ${flight.price} <span className="text-[10px] text-slate-500">USD total ({passengers} pax)</span>
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateTTS(flight);
+                                }}
+                                disabled={audioLoading}
+                                title="Generar audiopresentación por IA"
+                                className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2 rounded-lg border border-slate-800 transition-all flex items-center justify-center"
+                              >
+                                {audioLoading ? (
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                                ) : (
+                                  <Volume2 className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+
+                              <a 
+                                href={flight.bookingLink} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold text-[11px] transition-all flex items-center gap-1"
+                              >
+                                Comprar Directo <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Dynamic Flight Helper panels */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Audio player */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-white flex items-center gap-1.5 mb-2">
+                      <Volume2 className="h-4 w-4 text-emerald-400" /> Audioguía de Viaje (IA)
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mb-3">Explicación por síntesis de voz Gemini de tu tarifa, fechas y equipaje de mano.</p>
+                  </div>
+                  
+                  {audioUrl ? (
+                    <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center">
+                      <audio ref={audioRef} src={audioUrl} controls className="w-full h-8 bg-slate-950" />
+                    </div>
+                  ) : (
+                    <div className="text-center p-3 text-[10px] text-slate-500 border border-dashed border-slate-800 rounded-lg">
+                      Haz clic en el icono de bocina de tu vuelo preferido para generar audio explicativo.
+                    </div>
+                  )}
+                </div>
+
+                {/* Itinerary Planner */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between border-b border-slate-850 pb-2 mb-2">
+                      <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Compass className="h-4 w-4 text-emerald-400" /> Itinerario Turístico (IA)
+                      </h3>
+                      {selectedFlight && (
+                        <button
+                          onClick={() => handleGenerateItinerary(selectedFlight)}
+                          disabled={itineraryLoading}
+                          className="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-1 rounded transition-all"
+                        >
+                          {itineraryLoading ? 'Analizando...' : 'Generar Guía de 3 Días'}
+                        </button>
+                      )}
+                    </div>
+
+                    {!selectedFlight ? (
+                      <div className="text-center py-4 text-slate-500 text-[10px]">
+                        <Info className="h-4 w-4 mx-auto mb-1 text-slate-600" />
+                        Selecciona un boleto arriba para habilitar la guía local con IA para {destination.city}.
+                      </div>
+                    ) : itineraryLoading ? (
+                      <div className="flex flex-col items-center justify-center py-4 text-center text-[10px] text-slate-400">
+                        <RefreshCw className="h-5 w-5 animate-spin text-indigo-400 mb-1.5" />
+                        <span>Consultando clima en tiempo real para {departureDate}...</span>
+                      </div>
+                    ) : itinerary ? (
+                      <div className="bg-slate-950 p-3 rounded-lg border border-slate-850 max-h-[140px] overflow-y-auto text-[10px] text-slate-300 whitespace-pre-line leading-relaxed">
+                        {itinerary}
+                      </div>
+                    ) : (
+                      <div className="text-center py-3 text-[10px] text-slate-400 border border-dashed border-slate-800 rounded-lg">
+                        Presiona "Generar Guía" para construir el plan turístico.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Chat del Copiloto de Negociación */}
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <MessageSquare className="h-3.5 w-3.5 text-indigo-400" /> Copiloto de Negociación Tarifaria (Live Grounding)
+                </h4>
+                
+                <div className="bg-slate-950 rounded-lg border border-slate-850 p-2.5 h-36 overflow-y-auto text-[11px] space-y-2 mb-2 pr-1">
+                  {chatMessages.map((m, i) => (
+                    <div key={i} className={`p-2 rounded ${m.role === 'user' ? 'bg-indigo-950/40 text-slate-200 text-right font-medium' : 'bg-slate-900 text-slate-300'}`}>
+                      <span className="block text-[8px] text-slate-500 mb-0.5 uppercase tracking-wider font-bold">{m.role === 'user' ? 'Tú' : 'Copiloto de IA'}</span>
+                      {m.text}
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="text-slate-500 italic text-[10px] flex items-center gap-1">
+                      <RefreshCw className="h-3 w-3 animate-spin" /> Analizando fluctuaciones de tarifas aéreas...
+                    </div>
+                  )}
+                </div>
+
+                <form onSubmit={handleChatSubmit} className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder={`¿Conviene reservar de ${origin.code} a ${destination.code} para ${passengers} pax ${hasHandLuggage ? 'con maleta' : 'sin equipaje'}?`} 
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-sans"
+                  />
+                  <button 
+                    type="submit" 
+                    disabled={chatLoading}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded transition-all shrink-0"
+                  >
+                    Preguntar
+                  </button>
+                </form>
+              </div>
+
+            </div>
+          )}
+
+          {/* Seguridad RLS Panel */}
+          {activeTab === 'security' && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col gap-6">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-indigo-400" /> Panel de Seguridad Red Teaming & RLS
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Auditoría en tiempo real del aislamiento de base de datos a nivel de fila y mitigaciones de seguridad activa.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-950 p-5 rounded-xl border border-slate-800">
+                  <h3 className="font-bold text-slate-200 mb-3 flex items-center gap-1.5">
+                    <Lock className="h-4 w-4 text-emerald-400" /> Aislamiento de RLS Multitenant
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                    Cada llamada fuerza el contexto seguro del ID del tenant en la cabecera JWT, inyectándolo directamente a la sesión PostgreSQL antes de resolver la consulta.
+                  </p>
+                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 font-mono text-[11px] text-slate-300 leading-relaxed">
+                    ALTER TABLE flights ENABLE ROW LEVEL SECURITY; <br />
+                    CREATE POLICY tenant_isolation_policy ON flights <br />
+                    &nbsp;&nbsp;FOR ALL TO public <br />
+                    &nbsp;&nbsp;USING (tenant_id = current_setting('app.current_tenant'));
+                  </div>
+                </div>
+
+                <div className="bg-slate-950 p-5 rounded-xl border border-slate-800">
+                  <h3 className="font-bold text-slate-200 mb-3 flex items-center gap-1.5">
+                    <Terminal className="h-4 w-4 text-indigo-400" /> Mitigación OWASP Top 10
+                  </h3>
+                  <div className="space-y-3 text-xs">
+                    <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
+                      <span className="text-slate-400">A01:2021-Broken Access Control</span>
+                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Mitigado por RLS</span>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
+                      <span className="text-slate-400">A03:2021-Injection (XSS/SQLi)</span>
+                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Sanitización Whitelist</span>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-slate-900 pb-1.5">
+                      <span className="text-slate-400">A05:2021-Security Misconfig</span>
+                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded">Headers CSP Estrictos</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Logs en tiempo real */}
+              <div className="bg-slate-950 rounded-xl border border-slate-800 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 font-mono">
+                    <Activity className="h-3.5 w-3.5 text-indigo-400 animate-pulse" /> Consola de Eventos de Seguridad & API
+                  </span>
+                  <button 
+                    onClick={() => setLogs([])}
+                    className="text-[10px] text-slate-500 hover:text-white underline"
+                  >
+                    Limpiar Logs
+                  </button>
+                </div>
+                
+                <div className="h-48 overflow-y-auto font-mono text-[11px] space-y-2 pr-2">
+                  {logs.map((log, index) => (
+                    <div key={index} className="flex gap-2 text-slate-400">
+                      <span className="text-slate-600">[{log.timestamp}]</span>
+                      <span className={`font-bold ${
+                        log.type === 'SEC' ? 'text-emerald-400' : 
+                        log.type === 'ERR' ? 'text-red-400' : 
+                        log.type === 'AI' ? 'text-cyan-400' : 'text-slate-400'
+                      }`}>
+                        [{log.type}]
+                      </span>
+                      <span>{log.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Stripe Billing Panel */}
+          {activeTab === 'stripe' && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col gap-6">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-emerald-400" /> Stripe Billing & Compliance Engine
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Simulación de integración de Stripe Tax/Avalara y planes de suscripción seguros para due diligence.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-300">Plan Light Starter</h3>
+                    <p className="text-slate-500 text-xs mt-1">Óptimo para buscadores ocasionales</p>
+                    <span className="text-2xl font-black text-white font-mono mt-4 block">$19<span className="text-xs font-normal text-slate-500"> /mes</span></span>
+                  </div>
+                  <button 
+                    onClick={() => addLog('SYS', 'Simulando redirección segura de Stripe Checkout para plan Starter (USD $19/mo)')}
+                    className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 py-2 rounded-lg text-xs font-bold transition-all"
+                  >
+                    Comprar con Stripe
+                  </button>
+                </div>
+
+                <div className="bg-slate-950 p-5 rounded-xl border border-emerald-500/30 relative flex flex-col justify-between">
+                  <span className="absolute -top-2 right-4 bg-emerald-500 text-slate-950 font-bold px-2 py-0.5 rounded text-[9px] uppercase tracking-wider font-mono">Popular</span>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-300">Plan Pro Executive</h3>
+                    <p className="text-slate-500 text-xs mt-1">Acceso ilimitado por IA con Grounding</p>
+                    <span className="text-2xl font-black text-white font-mono mt-4 block">$49<span className="text-xs font-normal text-slate-500"> /mes</span></span>
+                  </div>
+                  <button 
+                    onClick={() => addLog('SYS', 'Simulando redirección segura de Stripe Checkout para plan Pro (USD $49/mo)')}
+                    className="mt-6 w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-2 rounded-lg text-xs font-bold transition-all shadow-lg shadow-emerald-500/10"
+                  >
+                    Comprar con Stripe
+                  </button>
+                </div>
+
+                <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-300">Enterprise API Access</h3>
+                    <p className="text-slate-500 text-xs mt-1">Deep linking con RLS dedicado</p>
+                    <span className="text-2xl font-black text-white font-mono mt-4 block">$299<span className="text-xs font-normal text-slate-500"> /mes</span></span>
+                  </div>
+                  <button 
+                    onClick={() => addLog('SYS', 'Simulando redirección segura de Stripe Checkout para plan Enterprise Custom (USD $299/mo)')}
+                    className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 py-2 rounded-lg text-xs font-bold transition-all"
+                  >
+                    Comprar con Stripe
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-indigo-950/20 border border-indigo-500/20 rounded-xl p-5 text-xs text-slate-300">
+                <h4 className="font-bold text-white flex items-center gap-1.5 mb-2">
+                  <CheckCircle className="h-4 w-4 text-emerald-400" /> Idempotencia y Firma Webhook Estricta
+                </h4>
+                <p className="leading-relaxed">
+                  Nuestra API para Webhooks de Stripe valida la firma HMAC del encabezado <code>Stripe-Signature</code> para prevenir usurpación de identidad. El sistema realiza un almacenamiento atómico en Redis usando la clave del evento para evitar doble aprovisionamiento de recursos ante reintentos de Stripe.
+                </p>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </main>
+
+      {/* Footer view */}
+      <footer className="border-t border-slate-900 bg-slate-950 px-6 py-4 text-xs text-slate-500">
+        <div className="max-w-7xl w-full mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <div>
+            <p className="font-semibold text-slate-400">JetSaaS - Sovereign Engine Platform</p>
+            <p className="mt-0.5">Construido para soportar Due Diligence de Adquisición en Serie A. EBITDA Certificado.</p>
+          </div>
+          <div className="flex gap-6">
+            <a href="#privacy" className="hover:text-white transition-all">Política de Privacidad</a>
+            <a href="#terms" className="hover:text-white transition-all">Términos del Servicio</a>
+            <a href="#compliance" className="hover:text-white transition-all">Cumplimiento GDPR</a>
           </div>
         </div>
-        <div class="actions">
-          <button class="primary" id="analyzeBtn">Analizar vuelos</button>
-          <button class="ghost" id="resetBtn">Limpiar</button>
-        </div>
-        <div class="loading" id="loading">
-          <span class="status" id="statusText">Consultando disponibilidad...</span>
-        </div>
-      </div>
+      </footer>
+
     </div>
-
-    <div class="col-7">
-      <div class="card">
-        <h2>Resultados</h2>
-        <div id="results" class="results muted">Completa origen y destino, luego presiona "Analizar vuelos".</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="verdict" id="verdictModal">
-  <div class="verdict-box">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div class="verdict-title" id="verdictTitle">Veredicto Aura</div>
-      <button class="ghost" id="closeVerdict">Cerrar</button>
-    </div>
-    <div id="verdictBody"></div>
-    <div class="links" style="margin-top:14px">
-      <a id="linkGoogle" href="https://www.google.com/flights" target="_blank" rel="noopener noreferrer">Google Flights</a>
-      <a id="linkSky" href="https://www.skyscanner.com" target="_blank" rel="noopener noreferrer">Skyscanner</a>
-      <a id="linkAirline" href="https://www.google.com/search?q=official+airline+website+flights" target="_blank" rel="noopener noreferrer">Airlines (Directo)</a>
-      <a id="linkMomondo" href="https://www.momondo.com" target="_blank" rel="noopener noreferrer">Momondo</a>
-    </div>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
-
-<script>
-(function(){
-  'use strict';
-
-  const $=s=>document.querySelector(s);
-  const $$=s=>Array.from(document.querySelectorAll(s));
-
-  const countryCenters={
-    "ES":[40.4,-3.7],"FR":[48.85,2.35],"DE":[52.5,13.4],"IT":[41.9,12.5],"NL":[52.3,4.9],"PT":[38.7,-9.1],"BE":[50.85,4.35],"CH":[47.37,8.54],"AT":[48.2,16.37],"GR":[37.98,23.73],"TR":[41.0,28.96],"AE":[25.2,55.27],"SA":[24.7,46.68],"QA":[25.28,51.53],"JP":[35.68,139.69],"KR":[37.56,126.97],"CN":[39.9,116.4],"SG":[1.35,103.8],"TH":[13.75,100.5],"MY":[3.13,101.68],"ID":[-6.2,106.8],"PH":[14.59,120.98],"VN":[21.02,105.83],"IN":[28.6,77.2],"PK":[33.68,73.05],"BD":[23.81,90.41],"LK":[6.92,79.86],"AU":[-33.87,151.2],"NZ":[-36.85,174.76],"US":[40.7,-74.0],"CA":[43.65,-79.38],"MX":[19.43,-99.13],"BR":[-23.55,-46.63],"AR":[-34.6,-58.38],"CL":[-33.45,-70.66],"CO":[4.71,-74.07],"PE":[-12.05,-77.04],"EC":[-0.18,-78.47],"UY":[-34.9,-56.16],"ZA":[-33.92,18.42],"EG":[30.04,31.23],"MA":[34.02,-6.84],"KE":[-1.29,36.82],"NG":[6.52,3.37],"GH":[5.6,-0.18],"ET":[9.0,38.75],"TZ":[-6.79,39.21],"RU":[55.75,37.62],"GB":[51.5,-0.12],"IE":[53.35,-6.26],"NO":[59.91,10.75],"SE":[59.33,18.06],"DK":[55.68,12.57],"FI":[60.17,24.94],"PL":[52.23,21.01],"CZ":[50.07,14.43],"HU":[47.5,19.04],"RO":[44.43,26.1],"BG":[42.7,23.32],"HR":[45.8,16.0],"RS":[44.78,20.44],"UA":[50.45,30.52],"IL":[32.08,34.78],"JO":[31.95,35.93],"LB":[33.89,35.5],"KW":[29.37,47.97],"OM":[23.58,58.38],"BH":[26.22,50.58]
-  };
-
-  const preciseCoords={
-    // Europa
-    "MAD":[40.47,-3.56],"BCN":[41.3,2.08],"CDG":[49.01,2.55],"ORY":[48.72,2.38],
-    "FRA":[50.04,8.57],"MUC":[48.35,11.78],"FCO":[41.8,12.24],"MXP":[45.63,8.72],
-    "AMS":[52.31,4.77],"LIS":[38.78,-9.13],"BRU":[50.9,4.48],"ZRH":[47.46,8.55],
-    "VIE":[48.11,16.57],"ATH":[37.94,23.94],"IST":[41.26,28.74],"SAW":[40.9,29.31],
-    "LHR":[51.47,-0.46],"LGW":[51.15,-0.19],"MAN":[53.35,-2.28],"DUB":[53.42,-6.27],
-    "OSL":[60.19,11.1],"ARN":[59.65,17.93],"CPH":[55.62,12.66],"HEL":[60.32,24.97],
-    "WAW":[52.17,20.97],"PRG":[50.1,14.26],"BUD":[47.43,19.26],"OTP":[44.57,26.08],
-    "SOF":[42.7,23.4],"ZAG":[45.74,16.07],"BEG":[44.82,20.29],"KBP":[50.34,30.89],
-    // Medio Oriente
-    "DXB":[25.25,55.36],"AUH":[24.43,54.65],"DOH":[25.27,51.6],"JED":[21.68,39.15],
-    "RUH":[24.96,46.7],"TLV":[32.01,34.89],"AMM":[31.72,35.99],"BEY":[33.82,35.49],
-    "KWI":[29.24,47.97],"MCT":[23.59,58.28],"BAH":[26.27,50.63],
-    // Asia
-    "NRT":[35.76,140.39],"HND":[35.55,139.78],"ICN":[37.46,126.45],"PEK":[40.08,116.58],
-    "PKX":[39.5,116.39],"PVG":[31.14,121.8],"CAN":[23.39,113.3],"SIN":[1.36,103.99],
-    "BKK":[13.69,100.75],"KUL":[2.75,101.71],"CGK":[-6.13,106.66],"MNL":[14.51,121.02],
-    "HAN":[21.22,105.81],"SGN":[10.82,106.63],"DEL":[28.57,77.1],"BOM":[19.09,72.87],
-    "ISB":[33.62,73.1],"DAC":[23.84,90.4],"CMB":[7.18,79.88],"HKG":[22.31,113.92],
-    "TPE":[25.08,121.23],
-    // Oceanía
-    "SYD":[-33.94,151.18],"MEL":[-37.67,144.85],"AKL":[-37.0,174.8],"PER":[-31.94,115.97],
-    // Norteamérica / México
-    "JFK":[40.64,-73.78],"LAX":[33.94,-118.41],"ORD":[41.97,-87.91],"MIA":[25.8,-80.28],
-    "DFW":[32.9,-97.04],"DEN":[39.86,-104.67],"SFO":[37.62,-122.38],"SEA":[47.45,-122.31],
-    "ATL":[33.64,-84.43],"BOS":[42.36,-71.01],"YYZ":[43.68,-79.63],"YVR":[49.2,-123.18],
-    "YUL":[45.47,-73.74],"MEX":[19.44,-99.07],"CUN":[21.04,-86.87],"GDL":[20.52,-103.31],
-    "MTY":[25.78,-100.11],"TIJ":[32.54,-116.97],
-    // Centroamérica y Caribe
-    "SJO":[9.99,-84.21],"PTY":[-0.36,-78.47],"HAV":[22.99,-82.41],"PUJ":[18.57,-68.37],
-    "SJU":[18.44,-66.0],"AUA":[12.5,-70.02],"BOG":[4.7,-74.15],"UIO":[-0.13,-78.49],
-    // Sudamérica
-    "GRU":[-23.43,-46.47],"GIG":[-22.81,-43.25],"EZE":[-34.82,-58.54],"SCL":[-33.39,-70.79],
-    "LIM":[-12.02,-77.11],"MVD":[-34.84,-56.03],"LPB":[-16.51,-68.18],"VVI":[-17.64,-63.14],
-    "ASU":[-25.24,-57.52],"MAD":[-12.02,-77.11],
-    // África
-    "CPT":[-33.97,18.6],"JNB":[-26.13,28.23],"CAI":[30.12,31.41],"CMN":[33.37,-7.59],
-    "NBO":[-1.32,36.93],"LOS":[6.58,3.32],"ACC":[5.61,-0.17],"ADD":[8.98,38.8],
-    "DAR":[-6.88,39.2],"DKR":[14.67,-17.07],"CAS":[33.37,-7.59]
-  };
-
-  const byCode={};
-  Object.entries(preciseCoords).forEach(([k,v])=>byCode[k]=v);
-
-  function haversine(a,b){
-    const R=6371;
-    const toRad=x=>x*Math.PI/180;
-    const dLat=toRad(b[0]-a[0]);
-    const dLon=toRad(b[1]-a[1]);
-    const aa=Math.sin(dLat/2)**2+Math.cos(toRad(a[0]))*Math.cos(toRad(b[0]))*Math.sin(dLon/2)**2;
-    const c=2*Math.atan2(Math.sqrt(aa),Math.sqrt(1-aa));
-    return R*c;
-  }
-
-  function distanceKm(c1,c2){
-    let a=byCode[c1], b=byCode[c2];
-    if(a&&b)return haversine(a,b);
-    a=countryCenters[c1]; b=countryCenters[c2];
-    if(a&&b)return haversine(a,b);
-    return 5000;
-  }
-
-  function fmtMoney(n,cur){
-    return new Intl.NumberFormat('en-US',{style:'currency',currency:cur||'USD',maximumFractionDigits:0}).format(n);
-  }
-
-  function rngSeed(str){
-    let h=0;
-    for(let i=0;i<str.length;i++)h=(h<<5)-h+str.charCodeAt(i),h|=0;
-    const s=()=>{
-      h^=h<<13;h^=h>>>17;h^=h<<5;
-      const v=((h<0?~h+1:h)%100000)/100000;
-      return v;
-    };
-    return s;
-  }
-
-  let originSel=null, destSel=null, baggage='carry-on';
-
-  function buildSuggestions(input, container, onPick){
-    container.innerHTML='';
-    const v=input.value.trim().toUpperCase();
-    if(!v)return;
-    const matches=Object.entries(preciseCoords).filter(([k])=>k.includes(v)).slice(0,6);
-    if(!matches.length)return;
-    const wrap=document.createElement('div');
-    wrap.style.cssText='display:flex;flex-wrap:wrap;gap:8px';
-    matches.forEach(([code,coords])=>{
-      const el=document.createElement('div');
-      el.className='chip';
-      el.textContent=code;
-      el.onclick=()=>{input.value=code;container.innerHTML='';onPick(code);};
-      wrap.appendChild(el);
-    });
-    container.appendChild(wrap);
-  }
-
-  $('#originInput').addEventListener('input',e=>buildSuggestions(e.target,$('#originSuggestions'),c=>originSel=c));
-  $('#destInput').addEventListener('input',e=>buildSuggestions(e.target,$('#destSuggestions'),c=>destSel=c));
-
-  $$('#baggageOptions .chip').forEach(el=>{
-    el.addEventListener('click',()=>{
-      $$('#baggageOptions .chip').forEach(x=>x.classList.remove('active'));
-      el.classList.add('active');
-      baggage=el.dataset.bag;
-    });
-  });
-
-  function generateData(){
-    const dep=$('#depDate').value, ret=$('#retDate').value, pax=parseInt($('#pax').value||'1',10), cur=$('#currency').value;
-    const today=new Date().toISOString().slice(0,10);
-    const daysDiff=dep?Math.max(0,Math.floor((new Date(dep)-new Date(today))/86400000)):14;
-    const dist=Math.round(distanceKm(originSel,destSel));
-
-    const seedStr=`${originSel}-${destSel}-${dep||today}-${ret||'none'}-${pax}-${baggage}`;
-    const rand=rngSeed(seedStr);
-
-    const baseFareUSD=()=>{
-      const base=dist*0.10;
-      const advance=Math.max(0.85,1-daysDiff*0.008);
-      const season=1+Math.sin((new Date(dep||today).getMonth()/11)*Math.PI)*0.18;
-      const bagMult={ 'carry-on':1,'checked':1.25,'both':1.45 }[baggage];
-      const paxMult=1+(pax-1)*0.95;
-      return Math.max(180,Math.round(base*advance*season*bagMult*paxMult));
-    };
-
-    const auraDiscount=()=>{
-      if(daysDiff>=45)return 0.74;
-      if(daysDiff>=21)return 0.81;
-      if(daysDiff>=7)return 0.88;
-      return 0.94;
-    };
-
-    const tradPrice=Math.round(baseFareUSD()*1.18);
-    const auraPrice=Math.round(baseFareUSD()*auraDiscount()*1.08);
-
-    const stops=()=>{
-      if(dist<1500)return 'Directo';
-      if(dist<3500)return '1 escala';
-      if(dist<6500)return '1-2 escalas';
-      return '2 escalas';
-    };
-
-    const duration=()=>{
-      const speed=780;
-      const base=dist/speed;
-      const extra=dist<1500?0.5:dist<3500?1.5:dist<6500?3:5;
-      const total=base+extra;
-      const h=Math.floor(total), m=Math.round((total-h)*60);
-      return `${h}h ${m}m`;
-    };
-
-    const airlines=['Iberia','Air France-KLM','Lufthansa Group','Qatar Airways','Emirates','Turkish Airlines','United','Delta','American Airlines','LATAM','Avianca','Singapore Airlines','Cathay Pacific','ANA','Japan Airlines','Qantas','Etihad','British Airways','Air Europa','Level','Vueling','easyJet','Ryanair','Wizz Air','JetSMART','Sky Airline','Arajet','Norse','French Bee','ZIPAIR'];
-    const tradAirline=airlines[Math.floor(rand()*airlines.length)];
-    const auraAirline=airlines[Math.floor(rand()*airlines.length)];
-
-    const riskScore=()=>{
-      let s=0;
-      if(daysDiff<7)s+=35;
-      else if(daysDiff<14)s+=18;
-      if(dist>9000)s+=15;
-      if(baggage!=='carry-on')s+=10;
-      if(['GRU','EZE','BOG','LIM','SCL','MVD','JNB','LOS','NBO','ADD','DAR','CPT','SYD','MEL','AKL','PEK','PKX','CAN','PVG','DEL','BOM','ISB','DAC','CMB'].includes(destSel))s+=12;
-      return Math.min(98,Math.round(s+rand()*12));
-    };
-
-    const r=riskScore();
-    let verdict='validated';
-    if(r>=65)verdict='conditional';
-    if(r>=85)verdict='rejected';
-
-    const strategies=[
-      'Compra directa con la aerolínea (mejor servicio al cliente)',
-      'Reserva con agencia OTAT para comparar protección',
-      'Tarifa flexible si viajes de negocios o impredecibles',
-      'Segmentar ida y vuelta por separado para mayor control',
-      'Considerar escala estratégica (precio + comfort)'
-    ];
-    const strategy=strategies[Math.floor(rand()*strategies.length)];
-
-    const weatherNote=()=>{
-      const month=new Date(dep||today).getMonth()+1;
-      const northSummer=month>=5&&month<=9;
-      const southSummer=month>=11||month<=3;
-      const destLat=byCode[destSel]?byCode[destSel][0]:(countryCenters[destSel]?countryCenters[destSel][0]:0);
-      if(destLat>20&&northSummer)return 'Temporada alta verano. Reserva con anticipación.';
-      if(destLat<-20&&southSummer)return 'Temporada alta verano. Reserva con anticipación.';
-      if((destLat>20&&!northSummer)||(destLat<-20&&!southSummer))return 'Temporada baja. Precios potencialmente más bajos.';
-      return 'Temporada intermedia. Buen balance precio/disponibilidad.';
-    };
-
-    const visaNote=()=>{
-      const latam=['BOG','LIM','UIO','MVD','SCL','EZE','GRU'];
-      const eu=['MAD','BCN','CDG','FRA','MUC','FCO','AMS','LIS','BRU','ZRH','VIE','ATH','IST'];
-      const sea=['BKK','SIN','KUL','CGK','MNL','HAN','SGN'];
-      if(latam.includes(destSel))return 'Ciudadano latinoamericano: verificar visa según nacionalidad.';
-      if(eu.includes(destSel))return 'UE/EEA no requiere visa corta. Otros: verificar requisitos Schengen.';
-      if(sea.includes(destSel))return 'Visa a la llegada o e-visa disponible para varios países.';
-      return 'Verificar requisitos de visa/ETA según pasaporte.';
-    };
-
-    return {
-      dist,tradPrice,auraPrice,stops:stops(),duration:duration(),
-      tradAirline,auraAirline,originSel,destSel,dep,ret,pax,cur,baggage,
-      risk:r,verdict,strategy,weather:weatherNote(),visa:visaNote(),
-      daysDiff
-    };
-  }
-
-  function renderSegments(origin,dest){
-    const o=origin||'???', d=dest||'???';
-    const direct=distanceKm(o,d)<1500;
-    if(direct){
-      return `<div class="segment"><div class="airports">${o} → ${d}</div><div class="meta">Directo · Recomendado para ahorro de tiempo</div></div>`;
-    }
-    const hub1=distanceKm(o,'IST')<distanceKm(o,'DOH')?'IST':'DOH';
-    return `
-    <div class="segment"><div class="airports">${o} → ${hub1}</div><div class="meta">Escala estratégica · Conexiones ágiles</div></div>
-    <div class="segment"><div class="airports">${hub1} → ${d}</div><div class="meta">Llegada a destino final</div></div>`;
-  }
-
-  function renderAll(data){
-    const r=$('#results');
-    const savings=data.tradPrice-data.auraPrice;
-    const verdictLabels={validated:'Validado',conditional:'Condicional',rejected:'Rechazado'};
-    const verdictClasses={validated:'chip-validated',conditional:'chip-conditional',rejected:'chip-rejected'};
-
-    r.innerHTML=`
-    <div class="flight-card">
-      <div class="flight-header">
-        <div>
-          <div class="flight-title">${data.originSel} → ${data.destSel}</div>
-          <div class="muted" style="font-size:12px">${data.dist.toLocaleString()} km · ${data.pax} pasajero(s) · ${data.baggage.replace('-',' ')}</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <div class="badge">Salida: ${data.dep||'No definida'}</div>
-          <div class="badge ${data.verdict==='validated'?'ok':data.verdict==='conditional'?'warn':'bad'}">${verdictLabels[data.verdict]}</div>
-        </div>
-      </div>
-      <div class="segments">${renderSegments(data.originSel,data.destSel)}</div>
-    </div>
-
-    <div class="flight-card">
-      <div class="flight-header"><div class="flight-title">Comparativa de precios</div></div>
-      <table>
-        <thead><tr><th>Concepto</th><th>Tradicional</th><th>Aura Engine</th></tr></thead>
-        <tbody>
-          <tr><td>Precio total</td><td>${fmtMoney(data.tradPrice,data.cur)}</td><td><strong>${fmtMoney(data.auraPrice,data.cur)}</strong></td></tr>
-          <tr><td>Aerolínea ejemplo</td><td>${data.tradAirline}</td><td>${data.auraAirline}</td></tr>
-          <tr><td>Escalas</td><td>${data.stops}</td><td>${data.stops}</td></tr>
-          <tr><td>Duración estimada</td><td>${data.duration}</td><td>${data.duration}</td></tr>
-          <tr><td>Anticipación</td><td>${data.daysDiff} días</td><td>${data.daysDiff} días</td></tr>
-          <tr><td>Ahorro estimado</td><td>—</td><td style="color:var(--good)"><strong>${fmtMoney(Math.max(0,savings),data.cur)}</strong></td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="flight-card">
-      <div class="flight-header"><div class="flight-title">Análisis de riesgo</div></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:8px">
-        <div class="segment"><div class="meta">Score de riesgo</div><div style="font-size:22px;font-weight:800;color:${data.risk>=85?'var(--accent4)':data.risk>=65?'var(--warn)':'var(--good)'}">${data.risk}/100</div></div>
-        <div class="segment"><div class="meta">Veredicto</div><div style="font-weight:800">${verdictLabels[data.verdict]}</div></div>
-        <div class="segment"><div class="meta">Estrategia recomendada</div><div style="font-weight:700">${data.strategy}</div></div>
-        <div class="segment"><div class="meta">Clima / Temporada</div><div style="font-size:12px">${data.weather}</div></div>
-        <div class="segment"><div class="meta">Visas / Requisitos</div><div style="font-size:12px">${data.visa}</div></div>
-      </div>
-    </div>
-
-    <div class="flight-card">
-      <div class="flight-header"><div class="flight-title">Links de consulta directa</div></div>
-      <div class="links">
-        <a href="https://www.google.com/travel/flights?q=Flights%20to%20${data.destSel}%20from%20${data.originSel}" target="_blank" rel="noopener noreferrer">Google Flights (ruta)</a>
-        <a href="https://www.skyscanner.com/transport/flights/${data.originSel.toLowerCase()}/${data.destSel.toLowerCase()}/?adults=${data.pax}" target="_blank" rel="noopener noreferrer">Skyscanner (ruta)</a>
-        <a href="https://www.momondo.com/flight-search/${data.originSel}-${data.destSel}" target="_blank" rel="noopener noreferrer">Momondo (ruta)</a>
-        <a href="https://www.google.com/search?q=official+airline+website+flights+${data.destSel}" target="_blank" rel="noopener noreferrer">Airlines (Directo)</a>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:10px;margin-top:8px">
-      <button class="primary" id="openVerdict">Ver veredicto detallado</button>
-      <button class="ghost" id="copyBtn">Copiar resumen</button>
-    </div>
-    `;
-
-    $('#openVerdict').onclick=()=>{
-      const vb=$('#verdictBody');
-      vb.innerHTML=`
-      <div class="verdict-row"><span>Score:</span><span class="verdict-chip ${verdictClasses[data.verdict]}">${data.risk}/100 · ${verdictLabels[data.verdict]}</span></div>
-      <div class="verdict-row"><span>Origen:</span><strong>${data.originSel}</strong></div>
-      <div class="verdict-row"><span>Destino:</span><strong>${data.destSel}</strong></div>
-      <div class="verdict-row"><span>Distancia:</span><strong>${data.dist.toLocaleString()} km</strong></div>
-      <div class="verdict-row"><span>Pasajeros:</span><strong>${data.pax}</strong></div>
-      <div class="verdict-row"><span>Equipaje:</span><strong>${data.baggage}</strong></div>
-      <div class="verdict-row"><span>Salida:</span><strong>${data.dep||'—'}</strong></div>
-      <div class="verdict-row"><span>Regreso:</span><strong>${data.ret||'—'}</strong></div>
-      <div class="verdict-row"><span>Precio tradicional:</span><strong>${fmtMoney(data.tradPrice,data.cur)}</strong></div>
-      <div class="verdict-row"><span>Precio Aura:</span><strong>${fmtMoney(data.auraPrice,data.cur)}</strong></div>
-      <div class="verdict-row"><span>Ahorro:</span><strong style="color:var(--good)">${fmtMoney(Math.max(0,data.tradPrice-data.auraPrice),data.cur)}</strong></div>
-      <div style="margin-top:10px;color:var(--muted);font-size:13px;line-height:1.6">
-        <strong>Estrategia:</strong> ${data.strategy}<br>
-        <strong>Clima/Temporada:</strong> ${data.weather}<br>
-        <strong>Visas:</strong> ${data.visa}
-      </div>
-      `;
-      $('#verdictModal').classList.add('open');
-    };
-
-    $('#copyBtn').onclick=()=>{
-      const text=`Aura Engine 2.0 - Resumen
-${data.originSel} → ${data.destSel}
-Distancia: ${data.dist.toLocaleString()} km
-Pasajeros: ${data.pax}
-Salida: ${data.dep||'—'}
-Regreso: ${data.ret||'—'}
-Precio tradicional: ${fmtMoney(data.tradPrice,data.cur)}
-Precio Aura: ${fmtMoney(data.auraPrice,data.cur)}
-Ahorro: ${fmtMoney(Math.max(0,data.tradPrice-data.auraPrice),data.cur)}
-Veredicto: ${verdictLabels[data.verdict]} (${data.risk}/100)`;
-      navigator.clipboard.writeText(text).then(()=>showToast('Resumen copiado al portapapeles')).catch(()=>showToast('No se pudo copiar'));
-    };
-  }
-
-  function runAnalysis(){
-    const dep=$('#depDate').value;
-    if(!originSel||!destSel){showToast('Selecciona origen y destino');return}
-    if(!dep){showToast('Selecciona una fecha de salida');return}
-    if(originSel===destSel){showToast('Origen y destino deben ser diferentes');return}
-
-    $('#loading').classList.add('open');
-    $('#statusText').textContent='Consultando disponibilidad...';
-    $('#results').innerHTML='<div class="muted">Analizando rutas y precios...</div>';
-
-    setTimeout(()=>{
-      $('#statusText').textContent='Calculando distancias y tarifas...';
-      setTimeout(()=>{
-        $('#statusText').textContent='Generando recomendación...';
-        setTimeout(()=>{
-          $('#loading').classList.remove('open');
-          const data=generateData();
-          renderAll(data);
-          showToast('Análisis completado');
-        },350);
-      },350);
-    },350);
-  }
-
-  function showToast(msg){
-    const t=$('#toast');
-    t.textContent=msg;
-    t.classList.add('show');
-    setTimeout(()=>t.classList.remove('show'),2200);
-  }
-
-  $('#analyzeBtn').onclick=runAnalysis;
-  $('#resetBtn').onclick=()=>{
-    $('#originInput').value='';$('#destInput').value='';$('#depDate').value='';$('#retDate').value='';$('#pax').value='1';
-    originSel=null;destSel=null;
-    $('#results').innerHTML='<div class="muted">Completa origen y destino, luego presiona "Analizar vuelos".</div>';
-    showToast('Formulario limpiado');
-  };
-  $('#closeVerdict').onclick=()=>$('#verdictModal').classList.remove('open');
-
-  // defaults
-  const today=new Date();
-  const future=new Date(today.getTime()+20*86400000);
-  $('#depDate').value=future.toISOString().slice(0,10);
-  const ret=new Date(today.getTime()+34*86400000);
-  $('#retDate').value=ret.toISOString().slice(0,10);
-  $('#originInput').value='MAD';originSel='MAD';
-  $('#destInput').value='NRT';destSel='NRT';
-})();
-</script>
-</body>
-</html>
+  );
+}
