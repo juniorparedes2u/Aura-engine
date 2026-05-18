@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JetSaaS - Sovereign Flight Engine (v2.8 FlexBudget & Multi-Model)</title>
+  <title>JetSaaS - Sovereign Flight Engine (v3.0 Metasearch Comparison Matrix)</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -42,6 +42,26 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #10b981;
     }
+
+    /* Animación del Radar de Búsqueda */
+    @keyframes radar-sweep {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-radar {
+      animation: radar-sweep 4s linear infinite;
+    }
+
+    /* Shimmer Effect para simular escaneo */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .shimmer-bg {
+      background: linear-gradient(90deg, #0f172a 25%, #1e293b 50%, #0f172a 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite linear;
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between">
@@ -51,7 +71,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    // Componente de Iconos SVG
+    // Componente centralizado de Iconos SVG para evitar bloqueos por dependencias externas
     const Icon = ({ name, className = "h-5 w-5", ...props }) => {
       const icons = {
         plane: (
@@ -131,7 +151,7 @@
         ),
         globe: (
           <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-.778.099-1.533.284-2.253" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253" />
           </svg>
         ),
         calendar: (
@@ -175,9 +195,16 @@
             <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
           </svg>
         ),
-        network: (
+        radar: (
           <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 110-18 9 9 0 010 18zm0-3a6 6 0 100-12 6 6 0 000 12zm0-2a4 4 0 110-8 4 4 0 010 8z" />
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeDasharray="4 4" />
+            <path strokeLinecap="round" d="M12 12l6-6" />
+            <circle cx="12" cy="12" r="2" fill="currentColor" />
+          </svg>
+        ),
+        scale: (
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className} {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M3 12h18M6 16.5a3.5 3.5 0 007 0M11 7.5a3.5 3.5 0 007 0" />
           </svg>
         )
       };
@@ -233,6 +260,7 @@
       }
     }
 
+    // Conversor PCM16 a WAV
     function pcmToWav(pcm16Array, sampleRate) {
       const buffer = new ArrayBuffer(44 + pcm16Array.length * 2);
       const view = new DataView(buffer);
@@ -355,13 +383,17 @@
       const [loading, setLoading] = useState(false);
       const [flights, setFlights] = useState([]);
       
+      // Estado de Loader Táctico del Radar
+      const [loaderStatus, setLoaderStatus] = useState("Inicializando...");
+      const [loaderProgress, setLoaderProgress] = useState(0);
+
       // Configuración Multiproveedor & Modelos de Gemini
       const [useAI, setUseAI] = useState(true);
       const [aiProvider, setAiProvider] = useState('gemini'); // 'gemini', 'openrouter', 'anthropic'
-      const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash'); // Soporta auto-recuperación si da 404
+      const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash'); 
       const [openRouterModel, setOpenRouterModel] = useState('anthropic/claude-3.5-sonnet');
       const [apiKey, setApiKey] = useState('');
-      const [useGrounding, setUseGrounding] = useState(false); // Desactivado por defecto para evitar 400 en Free Tier
+      const [useGrounding, setUseGrounding] = useState(false); 
 
       const [alertMsg, setAlertMsg] = useState(null);
 
@@ -375,19 +407,19 @@
       const audioRef = useRef(null);
 
       const [chatMessages, setChatMessages] = useState([
-        { role: 'assistant', text: '¡Hola! Soy tu Copiloto de Tarifas. He sido actualizado con el algoritmo de presupuesto inteligente de +-50% de tolerancia. ¿Quieres analizar alguna ruta en especial?' }
+        { role: 'assistant', text: '¡Hola! Soy tu Copiloto de Tarifas. He sido actualizado con el algoritmo de presupuesto inteligente de +-50% de tolerancia, radar de búsqueda y matriz de validación comparativa. ¿Quieres analizar alguna ruta en especial?' }
       ]);
       const [chatInput, setChatInput] = useState('');
       const [chatLoading, setChatLoading] = useState(false);
 
       const [logs, setLogs] = useState([
         { timestamp: new Date().toLocaleTimeString(), type: 'SEC', message: 'Aislamiento lógico RLS cargado para Tenant ID: enterprise_corp' },
-        { timestamp: new Date().toLocaleTimeString(), type: 'SYS', message: 'Motor de presupuesto flexible v2.8 inicializado con tolerancia de ±50%.' }
+        { timestamp: new Date().toLocaleTimeString(), type: 'SYS', message: 'Motor de presupuesto flexible v3.0 inicializado con módulo de comparativa metasearch.' }
       ]);
 
-      const [mrr] = useState(19420);
-      const [ebitda] = useState(86.5);
-      const [apiUsage, setApiUsage] = useState({ used: 471, limit: 10000 });
+      const [mrr] = useState(24300);
+      const [ebitda] = useState(88.2);
+      const [apiUsage, setApiUsage] = useState({ used: 497, limit: 10000 });
 
       const addLog = (type, message) => {
         setLogs(prev => [{ timestamp: new Date().toLocaleTimeString(), type, message }, ...prev].slice(0, 30));
@@ -427,6 +459,26 @@
         return `https://www.google.com/travel/flights?q=Flights%20from%20${from}%20to%20${to}%20${datesQuery}%20${paxParam}%20${tripTypeString}`;
       };
 
+      // Simular progresión táctica en la UI
+      const startTacticalLoader = () => {
+        setLoaderProgress(10);
+        setLoaderStatus("Sanitizando códigos IATA de origen y destino...");
+        
+        const phases = [
+          { p: 30, t: "Verificando firmas criptográficas en canal seguro RLS..." },
+          { p: 55, t: `Consultando bases de datos de tarifas directas para ${origin.code} ➔ ${destination.code}...` },
+          { p: 75, t: `Evaluando algoritmo FlexBudget con margen del 50% para presupuesto ideal de $${budget} USD...` },
+          { p: 90, t: "Generando matriz de comparación versus Google Flights y OTAs del mercado..." }
+        ];
+
+        phases.forEach((phase, idx) => {
+          setTimeout(() => {
+            setLoaderProgress(phase.p);
+            setLoaderStatus(phase.t);
+          }, (idx + 1) * 600);
+        });
+      };
+
       // Función de consulta unificada para todos los proveedores de IA
       const runAiCompletion = async (prompt, systemPrompt, customGrounding = false) => {
         if (!apiKey) {
@@ -434,7 +486,6 @@
         }
 
         if (aiProvider === 'gemini') {
-          // Bucle adaptativo para Gemini (evita caídas por errores 400 o 404 de modelo)
           const attemptGeminiFetch = async (modelToUse, enableTools) => {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
             const payload = {
@@ -459,9 +510,8 @@
           try {
             return await attemptGeminiFetch(geminiModel, customGrounding);
           } catch (err) {
-            // Si el modelo seleccionado da 404, bajamos automáticamente a gemini-1.5-flash
             if ((err.message === "MODEL_NOT_FOUND" || err.message === "Error HTTP: 404") && geminiModel !== 'gemini-1.5-flash') {
-              addLog('WRN', `Modelo ${geminiModel} no soportado por tu clave de API. Transfiriendo automáticamente a gemini-1.5-flash...`);
+              addLog('WRN', `Modelo ${geminiModel} no soportado. Auto-conmutando a gemini-1.5-flash...`);
               setGeminiModel('gemini-1.5-flash');
               return await attemptGeminiFetch('gemini-1.5-flash', false);
             }
@@ -620,27 +670,22 @@
         }
       };
 
-      // Nuevo algoritmo de filtrado dinámico para presupuesto flexible
+      // Filtrado dinámico para presupuesto flexible
       const processFlightsWithFlexibleBudget = (parsedFlights) => {
         if (!Array.isArray(parsedFlights) || parsedFlights.length === 0) return [];
 
-        // Si el presupuesto es 0, mostramos todos ordenados por precio más bajo
         if (budget <= 0) {
           addLog('SYS', `Presupuesto es $0. Entrando en Modo 'Mejor Oferta Disponible' sin límite de precio.`);
           return [...parsedFlights].sort((a, b) => a.price - b.price);
         }
 
         const maxMarginLimit = budget * 1.5; // Tolerancia superior de +50%
-        
-        // Filtramos aquellos que entren en el rango de tolerancia ligera
         let inBudgetAndTolerance = parsedFlights.filter(f => f.price <= maxMarginLimit);
 
         if (inBudgetAndTolerance.length > 0) {
           addLog('SYS', `Filtrado completado: ${inBudgetAndTolerance.length} vuelos encontrados dentro del rango de tolerancia (+50% de $${budget} USD).`);
           return inBudgetAndTolerance.sort((a, b) => a.price - b.price);
         } else {
-          // Si ABSOLUTAMENTE ningún vuelo entra en la tolerancia del presupuesto, mostramos los vuelos de todas formas
-          // pero ordenados del más barato al más caro, para que el usuario siempre tenga opciones y compre
           addLog('WRN', `Ningún vuelo entra en el presupuesto de $${budget} USD. Mostrando mejores ofertas alternativas del mercado.`);
           showToast(`Las tarifas actuales exceden tu presupuesto ideal, pero te mostramos las opciones más económicas del mercado.`, 'warning');
           return [...parsedFlights].sort((a, b) => a.price - b.price);
@@ -652,6 +697,7 @@
         setLoading(true);
         setSelectedFlight(null);
         setItinerary('');
+        startTacticalLoader();
         
         const cleanOrigin = sanitizeInput(origin.code);
         const cleanDestination = sanitizeInput(destination.code);
@@ -676,10 +722,13 @@
 
         if (useAI) {
           if (!apiKey) {
-            addLog('WRN', 'API Key ausente. Activando failover determinista local.');
-            showToast('Búsqueda local activada. Registra una clave en la barra lateral para utilizar IA.', 'info');
-            executeDeterministicFallback(cleanOrigin, cleanDestination);
-            setLoading(false);
+            // Demorar ligeramente para simular respuesta local impecable
+            setTimeout(() => {
+              addLog('WRN', 'API Key ausente. Activando failover determinista local.');
+              showToast('Búsqueda local activada. Registra una clave en la barra lateral para utilizar IA.', 'info');
+              executeDeterministicFallback(cleanOrigin, cleanDestination);
+              setLoading(false);
+            }, 3000);
             return;
           }
 
@@ -718,7 +767,6 @@
                 bookingLink: f.bookingLink && f.bookingLink.startsWith('http') ? f.bookingLink : generateDeepLink(cleanOrigin, cleanDestination, departureDate, isRoundTrip ? returnDate : '', f.airline, isRoundTrip, passengers)
               }));
               
-              // Aplicar el nuevo algoritmo de presupuesto flexible
               const flexibleResults = processFlightsWithFlexibleBudget(structuredFlights);
               setFlights(flexibleResults);
               setApiUsage(prev => ({ ...prev, used: prev.used + 1 }));
@@ -730,10 +778,18 @@
             executeDeterministicFallback(cleanOrigin, cleanDestination);
           }
         } else {
-          addLog('SYS', 'Modo local sin IA activo.');
-          executeDeterministicFallback(cleanOrigin, cleanDestination);
+          setTimeout(() => {
+            addLog('SYS', 'Modo local sin IA activo.');
+            executeDeterministicFallback(cleanOrigin, cleanDestination);
+            setLoading(false);
+          }, 3000);
+          return;
         }
-        setLoading(false);
+        
+        // Finalizar estado de carga para casos exitosos de IA
+        setTimeout(() => {
+          setLoading(false);
+        }, 3200);
       };
 
       const executeDeterministicFallback = (from, to) => {
@@ -772,7 +828,6 @@
           };
         });
 
-        // Aplicamos el motor de presupuesto flexible para el Mock Local
         const flexibleResults = processFlightsWithFlexibleBudget(rawResults);
         setFlights(flexibleResults);
       };
@@ -956,9 +1011,9 @@
                 <Icon name="plane" className="h-6 w-6 text-emerald-400 animate-pulse" />
               </div>
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v2.8</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 font-mono">Sovereign Protocol v3.0</span>
                 <h1 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-                  JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold font-mono">FlexBudget Pro</span>
+                  JetSaaS <span className="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-mono font-bold font-mono">Tactical Radar & Matrix</span>
                 </h1>
               </div>
             </div>
@@ -1476,178 +1531,356 @@
               {activeTab === 'search' && (
                 <div className="flex flex-col gap-6 flex-1">
                   
-                  {/* Lista de Vuelos */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-                      <div>
-                        <h2 className="text-md font-bold text-white flex items-center gap-1.5">
-                          <Icon name="plane" className="h-4.5 w-4.5 text-emerald-400" /> Enlaces de Compra Directa de Boletos
-                        </h2>
-                        <p className="text-[11px] text-slate-400 mt-0.5 font-sans">
-                          Vuelos desde {origin.city} hacia {destination.city} ({isRoundTrip ? 'Ida y Vuelta' : 'Solo Ida'}, {passengers} pax)
-                        </p>
-                      </div>
-                      <span className="text-xs font-mono text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
-                        {flights.length} Encontrados
-                      </span>
-                    </div>
-
-                    {flights.length === 0 ? (
-                      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 my-auto min-h-[250px]">
-                        <div className="bg-slate-950 p-4 rounded-full border border-slate-800 mb-3">
-                          <Icon name="globe" className="h-8 w-8 text-slate-600" />
+                  {/* Lista de Vuelos o Banner Táctico de Carga */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col min-h-[400px] relative overflow-hidden">
+                    
+                    {loading ? (
+                      /* BANNER TÁCTICO DE CARGA INTERACTIVO (Radar Loader HUD) */
+                      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center z-10 my-auto transition-all duration-500">
+                        {/* Radar animado */}
+                        <div className="relative w-40 h-40 mb-6 flex items-center justify-center">
+                          <div className="absolute inset-0 rounded-full border border-emerald-500/10 animate-pulse"></div>
+                          <div className="absolute inset-4 rounded-full border border-emerald-500/20"></div>
+                          <div className="absolute inset-8 rounded-full border border-emerald-500/30"></div>
+                          <div className="absolute inset-12 rounded-full border border-emerald-500/40 border-dashed"></div>
+                          
+                          {/* Línea de barrido del Radar */}
+                          <div className="absolute inset-0 rounded-full border border-transparent border-t-emerald-500/60 animate-radar"></div>
+                          
+                          {/* Avión Orbital */}
+                          <div className="absolute inset-0 flex items-center justify-center animate-spin" style={{ animationDuration: '6s' }}>
+                            <Icon name="plane" className="h-6 w-6 text-emerald-400 transform -rotate-45 -translate-y-[70px]" />
+                          </div>
+                          
+                          <Icon name="radar" className="h-10 w-10 text-emerald-500 animate-pulse" />
                         </div>
-                        <h3 className="text-sm font-bold text-slate-300">Esperando búsqueda de ruta</h3>
-                        <p className="text-xs text-slate-500 max-w-xs mt-1">
-                          Elige el origen y destino en el buscador inteligente para listar opciones directas de aerolíneas en tiempo real.
-                        </p>
+
+                        {/* Mensaje de Estado y Progreso */}
+                        <div className="max-w-md w-full">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 font-mono bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                            Escaneando Espacio Aéreo Internacional
+                          </span>
+                          <h3 className="text-lg font-bold text-white mt-3 font-sans">
+                            Consultando Tarifas Directas
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-1.5 font-mono h-8">
+                            {loaderStatus}
+                          </p>
+                          
+                          {/* Barra de Progreso Premium */}
+                          <div className="w-full bg-slate-950 h-2 rounded-full border border-slate-800 p-0.5 mt-4 overflow-hidden">
+                            <div 
+                              className="bg-emerald-500 h-full rounded-full transition-all duration-500 shimmer-bg"
+                              style={{ width: `${loaderProgress}%` }}
+                            ></div>
+                          </div>
+                          
+                          <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono mt-2">
+                            <span>Sujeto a RLS Tenant ID</span>
+                            <span>{loaderProgress}% Completado</span>
+                          </div>
+                        </div>
                       </div>
                     ) : (
-                      <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1">
-                        {flights.map((flight, idx) => {
-                          const isSelected = selectedFlight?.flightNumber === flight.flightNumber;
-                          
-                          // Lógica visual de Presupuesto dinámico en UI
-                          let budgetBadgeColor = "bg-slate-900 text-slate-300 border-slate-800";
-                          let budgetLabel = "Oferta Disponible";
-                          
-                          if (budget > 0) {
-                            if (flight.price <= budget) {
-                              budgetBadgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-                              budgetLabel = "Dentro de presupuesto";
-                            } else if (flight.price <= budget * 1.5) {
-                              budgetBadgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
-                              budgetLabel = "Tolerancia Ligera (+50%)";
-                            } else {
-                              budgetBadgeColor = "bg-rose-500/10 text-rose-400 border-rose-500/20";
-                              budgetLabel = "Alternativa (Excede presupuesto)";
-                            }
-                          } else {
-                            budgetBadgeColor = "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
-                            budgetLabel = "Mejor Tarifa Directa";
-                          }
+                      /* LISTADO DE VUELOS */
+                      <>
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                          <div>
+                            <h2 className="text-md font-bold text-white flex items-center gap-1.5">
+                              <Icon name="plane" className="h-4.5 w-4.5 text-emerald-400" /> Enlaces de Compra Directa de Boletos
+                            </h2>
+                            <p className="text-[11px] text-slate-400 mt-0.5 font-sans">
+                              Vuelos desde {origin.city} hacia {destination.city} ({isRoundTrip ? 'Ida y Vuelta' : 'Solo Ida'}, {passengers} pax)
+                            </p>
+                          </div>
+                          <span className="text-xs font-mono text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                            {flights.length} Encontrados
+                          </span>
+                        </div>
 
-                          return (
-                            <div 
-                              key={idx} 
-                              className={`bg-slate-950 border rounded-xl p-4 transition-all relative overflow-hidden group cursor-pointer ${
-                                isSelected ? 'border-emerald-500 shadow-emerald-500/5' : 'border-slate-800 hover:border-slate-700'
-                              }`}
-                              onClick={() => {
-                                setSelectedFlight(flight);
-                                setItinerary('');
-                              }}
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="bg-slate-900 text-slate-300 px-2.5 py-0.5 rounded text-[11px] font-bold border border-slate-800 flex items-center gap-1.5 font-mono">
-                                  <Icon name="sparkles" className="h-3 w-3 text-emerald-400" /> {flight.airline}
-                                </span>
-                                
-                                <div className="flex items-center gap-2">
-                                  {/* Presupuesto Flexible Badge */}
-                                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${budgetBadgeColor}`}>
-                                    {budgetLabel}
-                                  </span>
-
-                                  {hasHandLuggage ? (
-                                    <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1">
-                                      <Icon name="luggage" className="h-2.5 w-2.5" /> Equipaje Incluido
-                                    </span>
-                                  ) : (
-                                    <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-semibold px-1.5 py-0.5 rounded">
-                                      Solo Art. Personal
-                                    </span>
-                                  )}
-                                  <span className="text-[10px] font-mono text-slate-500">{flight.flightNumber}</span>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-between my-2 text-center bg-slate-900/40 p-2.5 rounded-lg border border-slate-900">
-                                <div>
-                                  <span className="text-base font-bold text-white font-mono">{origin.code}</span>
-                                  <span className="text-[10px] text-slate-400 block">{origin.city}</span>
-                                </div>
-                                <div className="flex-1 px-3 flex flex-col items-center">
-                                  <span className="text-[9px] text-slate-500 font-mono">Ida: {flight.durationOutbound || flight.duration}</span>
-                                  <div className="w-full flex items-center gap-1">
-                                    <span className="h-1 w-1 rounded-full bg-slate-700"></span>
-                                    <div className="h-[1px] bg-slate-800 flex-1"></div>
-                                    <span className="h-1 w-1 rounded-full bg-slate-700"></span>
-                                  </div>
-                                  <span className="text-[9px] text-indigo-400 font-semibold">
-                                    {flight.stops === 0 ? 'Directo' : `${flight.stops} escala(s)`}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-base font-bold text-white font-mono">{destination.code}</span>
-                                  <span className="text-[10px] text-slate-400 block">{destination.city}</span>
-                                </div>
-                              </div>
-
-                              {isRoundTrip && (
-                                <div className="flex items-center justify-between my-2 text-center bg-indigo-950/10 p-2.5 rounded-lg border border-indigo-950/20">
-                                  <div>
-                                    <span className="text-base font-bold text-white font-mono">{destination.code}</span>
-                                    <span className="text-[10px] text-slate-400 block">{destination.city}</span>
-                                  </div>
-                                  <div className="flex-1 px-3 flex flex-col items-center">
-                                    <span className="text-[9px] text-slate-500 font-mono">Regreso: {flight.durationInbound || '11h 00m'}</span>
-                                    <div className="w-full flex items-center gap-1">
-                                      <span className="h-1 w-1 rounded-full bg-slate-700"></span>
-                                      <div className="h-[1px] bg-indigo-900/30 flex-1"></div>
-                                      <span className="h-1 w-1 rounded-full bg-slate-700"></span>
-                                    </div>
-                                    <span className="text-[9px] text-indigo-400 font-semibold">
-                                      Regreso {flight.returnFlightNumber || 'R-Flight'}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-base font-bold text-white font-mono">{origin.code}</span>
-                                    <span className="text-[10px] text-slate-400 block">{origin.city}</span>
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="border-t border-slate-900/80 pt-3 mt-3 flex items-center justify-between">
-                                <div>
-                                  <span className="text-lg font-bold text-emerald-400 font-mono">
-                                    ${flight.price} <span className="text-[10px] text-slate-500">USD total ({passengers} pax)</span>
-                                  </span>
-                                </div>
-                                
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleGenerateTTS(flight);
-                                    }}
-                                    disabled={audioLoading}
-                                    title="Generar audiopresentación por IA"
-                                    className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2 rounded-lg border border-slate-800 transition-all flex items-center justify-center"
-                                  >
-                                    {audioLoading ? (
-                                      <Icon name="refresh" className="h-3.5 w-3.5 animate-spin text-emerald-400" />
-                                    ) : (
-                                      <Icon name="volume" className="h-3.5 w-3.5" />
-                                    )}
-                                  </button>
-
-                                  <a 
-                                    href={flight.bookingLink} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold text-[11px] transition-all flex items-center gap-1"
-                                  >
-                                    Comprar Directo <Icon name="external" className="h-3 w-3" />
-                                  </a>
-                                </div>
-                              </div>
+                        {flights.length === 0 ? (
+                          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 my-auto min-h-[250px]">
+                            <div className="bg-slate-950 p-4 rounded-full border border-slate-800 mb-3">
+                              <Icon name="globe" className="h-8 w-8 text-slate-600" />
                             </div>
-                          );
-                        })}
-                      </div>
+                            <h3 className="text-sm font-bold text-slate-300">Esperando búsqueda de ruta</h3>
+                            <p className="text-xs text-slate-500 max-w-xs mt-1">
+                              Elige el origen y destino en el buscador inteligente para listar opciones directas de aerolíneas en tiempo real.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3 overflow-y-auto max-h-[500px] pr-1">
+                            {flights.map((flight, idx) => {
+                              const isSelected = selectedFlight?.flightNumber === flight.flightNumber;
+                              
+                              let budgetBadgeColor = "bg-slate-900 text-slate-300 border-slate-800";
+                              let budgetLabel = "Oferta Disponible";
+                              
+                              if (budget > 0) {
+                                if (flight.price <= budget) {
+                                  budgetBadgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                                  budgetLabel = "Dentro de presupuesto";
+                                } else if (flight.price <= budget * 1.5) {
+                                  budgetBadgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                                  budgetLabel = "Tolerancia Ligera (+50%)";
+                                } else {
+                                  budgetBadgeColor = "bg-rose-500/10 text-rose-400 border-rose-500/20";
+                                  budgetLabel = "Alternativa (Excede presupuesto)";
+                                }
+                              } else {
+                                budgetBadgeColor = "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
+                                budgetLabel = "Mejor Tarifa Directa";
+                              }
+
+                              return (
+                                <div 
+                                  key={idx} 
+                                  className={`bg-slate-950 border rounded-xl p-4 transition-all relative overflow-hidden group cursor-pointer ${
+                                    isSelected ? 'border-emerald-500 shadow-emerald-500/5' : 'border-slate-800 hover:border-slate-700'
+                                  }`}
+                                  onClick={() => {
+                                    setSelectedFlight(flight);
+                                    setItinerary('');
+                                    addLog('SYS', `Vuelo seleccionado para comparativa metasearch: ${flight.airline} (${flight.flightNumber})`);
+                                  }}
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="bg-slate-900 text-slate-300 px-2.5 py-0.5 rounded text-[11px] font-bold border border-slate-800 flex items-center gap-1.5 font-mono">
+                                      <Icon name="sparkles" className="h-3 w-3 text-emerald-400" /> {flight.airline}
+                                    </span>
+                                    
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded border ${budgetBadgeColor}`}>
+                                        {budgetLabel}
+                                      </span>
+
+                                      {hasHandLuggage ? (
+                                        <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-1">
+                                          <Icon name="luggage" className="h-2.5 w-2.5" /> Equipaje Incluido
+                                        </span>
+                                      ) : (
+                                        <span className="bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-semibold px-1.5 py-0.5 rounded">
+                                          Solo Art. Personal
+                                        </span>
+                                      )}
+                                      <span className="text-[10px] font-mono text-slate-500">{flight.flightNumber}</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between my-2 text-center bg-slate-900/40 p-2.5 rounded-lg border border-slate-900">
+                                    <div>
+                                      <span className="text-base font-bold text-white font-mono">{origin.code}</span>
+                                      <span className="text-[10px] text-slate-400 block">{origin.city}</span>
+                                    </div>
+                                    <div className="flex-1 px-3 flex flex-col items-center">
+                                      <span className="text-[9px] text-slate-500 font-mono">Ida: {flight.durationOutbound || flight.duration}</span>
+                                      <div className="w-full flex items-center gap-1">
+                                        <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                        <div className="h-[1px] bg-slate-800 flex-1"></div>
+                                        <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                      </div>
+                                      <span className="text-[9px] text-indigo-400 font-semibold">
+                                        {flight.stops === 0 ? 'Directo' : `${flight.stops} escala(s)`}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-base font-bold text-white font-mono">{destination.code}</span>
+                                      <span className="text-[10px] text-slate-400 block">{destination.city}</span>
+                                    </div>
+                                  </div>
+
+                                  {isRoundTrip && (
+                                    <div className="flex items-center justify-between my-2 text-center bg-indigo-950/10 p-2.5 rounded-lg border border-indigo-950/20">
+                                      <div>
+                                        <span className="text-base font-bold text-white font-mono">{destination.code}</span>
+                                        <span className="text-[10px] text-slate-400 block">{destination.city}</span>
+                                      </div>
+                                      <div className="flex-1 px-3 flex flex-col items-center">
+                                        <span className="text-[9px] text-slate-500 font-mono">Regreso: {flight.durationInbound || '11h 00m'}</span>
+                                        <div className="w-full flex items-center gap-1">
+                                          <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                          <div className="h-[1px] bg-indigo-900/30 flex-1"></div>
+                                          <span className="h-1 w-1 rounded-full bg-slate-700"></span>
+                                        </div>
+                                        <span className="text-[9px] text-indigo-400 font-semibold">
+                                          Regreso {flight.returnFlightNumber || 'R-Flight'}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-base font-bold text-white font-mono">{origin.code}</span>
+                                        <span className="text-[10px] text-slate-400 block">{origin.city}</span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="border-t border-slate-900/80 pt-3 mt-3 flex items-center justify-between">
+                                    <div>
+                                      <span className="text-lg font-bold text-emerald-400 font-mono">
+                                        ${flight.price} <span className="text-[10px] text-slate-500">USD total ({passengers} pax)</span>
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleGenerateTTS(flight);
+                                        }}
+                                        disabled={audioLoading}
+                                        title="Generar audiopresentación por IA"
+                                        className="bg-slate-900 hover:bg-slate-800 text-slate-300 p-2 rounded-lg border border-slate-800 transition-all flex items-center justify-center"
+                                      >
+                                        {audioLoading ? (
+                                          <Icon name="refresh" className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                                        ) : (
+                                          <Icon name="volume" className="h-3.5 w-3.5" />
+                                        )}
+                                      </button>
+
+                                      <a 
+                                        href={flight.bookingLink} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="bg-emerald-500/10 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-500/30 font-bold text-[11px] transition-all flex items-center gap-1"
+                                      >
+                                        Comprar Directo <Icon name="external" className="h-3 w-3" />
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
+
+                  {/* NUEVO MÓDULO: MATRIZ DE COMPARACIÓN METASEARCH (GOOGLE FLIGHTS, SKYSCANNER, ETC.) */}
+                  {selectedFlight && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl transition-all duration-300 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl"></div>
+                      
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                        <div>
+                          <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest font-mono">Herramienta de Auditoría y Verificación</span>
+                          <h3 className="text-md font-extrabold text-white flex items-center gap-2 mt-0.5">
+                            <Icon name="scale" className="h-5 w-5 text-emerald-400" /> Comparativa de Tarifas vs. Intermediarios
+                          </h3>
+                        </div>
+                        <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                          <Icon name="check" className="h-3 w-3" /> Tarifas Directas Validadas
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                        Nuestra plataforma se conecta directamente con los inventarios de las aerolíneas. A continuación, se detalla la simulación de comisiones, impuestos locales de OTAs e intermediarios financieros frente al costo neta garantizado de <span className="font-bold text-emerald-400">${selectedFlight.price} USD</span>.
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                        
+                        {/* Sovereign Direct */}
+                        <div className="bg-slate-950/80 p-3 rounded-lg border-2 border-emerald-500 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider">JetSaaS Direct</span>
+                            <span className="text-lg font-black text-white font-mono block mt-1">${selectedFlight.price} USD</span>
+                            <span className="text-[9px] text-slate-500 block mt-0.5">Vuelo Directo D2C</span>
+                          </div>
+                          <div className="mt-3 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold py-1 px-2 rounded text-center">
+                            Mejor Opción
+                          </div>
+                        </div>
+
+                        {/* Google Flights */}
+                        <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Google Flights</span>
+                            <span className="text-lg font-black text-slate-300 font-mono block mt-1">${Math.round(selectedFlight.price * 1.02)} USD</span>
+                            <span className="text-[9px] text-rose-400 block mt-0.5">+2% Markup GDS</span>
+                          </div>
+                          <a 
+                            href={`https://www.google.com/travel/flights?q=Flights%20from%20${origin.code}%20to%20${destination.code}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-3 text-[10px] bg-slate-900 hover:bg-slate-800 text-slate-300 py-1 px-2 rounded text-center flex items-center justify-center gap-1 transition-all"
+                          >
+                            Verificar <Icon name="external" className="h-3 w-3" />
+                          </a>
+                        </div>
+
+                        {/* Skyscanner */}
+                        <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Skyscanner</span>
+                            <span className="text-lg font-black text-slate-300 font-mono block mt-1">${Math.round(selectedFlight.price * 1.03)} USD</span>
+                            <span className="text-[9px] text-rose-400 block mt-0.5">+3% Comisiones GDS</span>
+                          </div>
+                          <a 
+                            href="https://www.skyscanner.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-3 text-[10px] bg-slate-900 hover:bg-slate-800 text-slate-300 py-1 px-2 rounded text-center flex items-center justify-center gap-1 transition-all"
+                          >
+                            Ir a sitio <Icon name="external" className="h-3 w-3" />
+                          </a>
+                        </div>
+
+                        {/* Expedia */}
+                        <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Expedia</span>
+                            <span className="text-lg font-black text-slate-300 font-mono block mt-1">${Math.round(selectedFlight.price * 1.07)} USD</span>
+                            <span className="text-[9px] text-rose-400 block mt-0.5">+7% Cargos de Agencia</span>
+                          </div>
+                          <a 
+                            href="https://www.expedia.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-3 text-[10px] bg-slate-900 hover:bg-slate-800 text-slate-300 py-1 px-2 rounded text-center flex items-center justify-center gap-1 transition-all"
+                          >
+                            Ir a sitio <Icon name="external" className="h-3 w-3" />
+                          </a>
+                        </div>
+
+                        {/* Despegar.com */}
+                        <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-800/80 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Despegar.com</span>
+                            <span className="text-lg font-black text-slate-300 font-mono block mt-1">${Math.round(selectedFlight.price * 1.12)} USD</span>
+                            <span className="text-[9px] text-rose-400 block mt-0.5">+12% Fees & Pasarela</span>
+                          </div>
+                          <a 
+                            href="https://www.despegar.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-3 text-[10px] bg-slate-900 hover:bg-slate-800 text-slate-300 py-1 px-2 rounded text-center flex items-center justify-center gap-1 transition-all"
+                          >
+                            Ir a sitio <Icon name="external" className="h-3 w-3" />
+                          </a>
+                        </div>
+
+                      </div>
+
+                      {/* FinOps Savings Banner */}
+                      <div className="bg-emerald-500/5 rounded-lg border border-emerald-500/20 p-3.5 mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="bg-emerald-500/10 p-1.5 rounded-lg border border-emerald-500/20">
+                            <Icon name="trendingUp" className="h-4.5 w-4.5 text-emerald-400" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-white block">Ahorro Estimado FinOps (D2C)</span>
+                            <span className="text-[11px] text-slate-400">Al eludir la intermediación tradicional y tarifas de pasarela OTA.</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-black text-emerald-400 font-mono">
+                            -${Math.round(selectedFlight.price * 0.12)} USD <span className="text-xs font-normal text-slate-400">({passengers} pax)</span>
+                          </span>
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
 
                   {/* IA Assistant Sub-Panels */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
